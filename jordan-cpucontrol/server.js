@@ -4,6 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const os = require('os');
 const cpu = require('./cpu');
+const pkg = require('./package.json');
 
 const app = express();
 app.use(express.json());
@@ -177,6 +178,8 @@ app.get('/api/status', async (req, res) => {
         const state = await cpu.getCurrentState();
         
         res.json({
+            version: pkg.version,
+            clientIp: getBestClientIp(req),
             temperature: state.temperature,
             load: state.load,
             turboSupported: state.turboSupported,

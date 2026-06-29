@@ -328,6 +328,7 @@
         </div>
     </div> <!-- end tab-advanced -->
 
+    <div id="versionDisplay" style="text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 20px;">v--</div>
 </div>
 
 <script>
@@ -356,6 +357,7 @@
         apiAllowedIp: 'auto',
         tempUnit: 'C'
     };
+    let currentStatusData = null;
 
     let isUpdating = false;
 
@@ -453,6 +455,11 @@
             if (data.error) {
                 console.error('API Error:', data.error);
                 return;
+            }
+            
+            currentStatusData = data;
+            if (data.version) {
+                document.getElementById('versionDisplay').innerText = 'v' + data.version;
             }
 
             const isF = data.tempUnit === 'F';
@@ -593,8 +600,11 @@
         if (/^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) {
             const parts = hostname.split('.');
             newCidr = `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
+        } else if (currentStatusData && currentStatusData.clientIp && /^(\d{1,3}\.){3}\d{1,3}$/.test(currentStatusData.clientIp)) {
+            const parts = currentStatusData.clientIp.split('.');
+            newCidr = `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
         } else {
-            alert("Warning: You are connected via " + hostname + " so we cannot fully auto-detect your IP subnet. Defaulting to 192.168.1.0/24.");
+            alert("Warning: We cannot reliably auto-detect your local subnet from this connection. Defaulting to 192.168.1.0/24.");
         }
 
         apiIp.value = newCidr;
