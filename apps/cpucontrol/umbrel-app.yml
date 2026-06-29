@@ -1,15 +1,15 @@
 manifestVersion: 1
 id: cpucontrol
 category: Utilities
-name: CPU Control
+name: Cpu Control
 version: "1.0.0"
 description: Monitor and control CPU temperature, Hyperthreading, and Throttling on Intel CPUs like the NUC8i7BNH.
 tagline: Keep your node cool and efficient
 developer: Umbrel Community
-website: "https://github.com/your-username/umbrel-cpucontrol"
+website: "https://github.com/jordan-public/umbrel-cpucontrol"
 dependencies: []
-repo: "https://github.com/your-username/umbrel-cpucontrol"
-support: "https://github.com/your-username/umbrel-cpucontrol/issues"
+repo: "https://github.com/jordan-public/umbrel-cpucontrol"
+support: "https://github.com/jordan-public/umbrel-cpucontrol/issues"
 port: 3000
 gallery: []
 path: ""
