@@ -278,23 +278,30 @@
 
             // Only update controls if user isn't currently interacting
             if (!isUpdating) {
-                if (data.turboSupported) {
+                if (data.turboSupported && document.activeElement !== turboToggle) {
                     turboToggle.checked = data.turboboost;
                 }
-                throttleSlider.value = data.throttling;
-                throttleValue.innerText = data.throttling + '%';
                 
-                apiToggle.checked = data.apiEnabled;
-                apiIp.value = data.apiAllowedIp === 'auto' ? 'Detecting LAN IP...' : (data.apiAllowedIp || '');
+                if (document.activeElement !== throttleSlider) {
+                    throttleSlider.value = data.throttling;
+                    throttleValue.innerText = data.throttling + '%';
+                }
                 
-                if (data.apiEnabled) {
-                    apiIp.disabled = false;
-                    btnLocal.disabled = false;
-                    ipBlockGroup.style.opacity = '1';
-                } else {
-                    apiIp.disabled = true;
-                    btnLocal.disabled = true;
-                    ipBlockGroup.style.opacity = '0.5';
+                if (document.activeElement !== apiToggle) {
+                    apiToggle.checked = data.apiEnabled;
+                    if (data.apiEnabled) {
+                        apiIp.disabled = false;
+                        btnLocal.disabled = false;
+                        ipBlockGroup.style.opacity = '1';
+                    } else {
+                        apiIp.disabled = true;
+                        btnLocal.disabled = true;
+                        ipBlockGroup.style.opacity = '0.5';
+                    }
+                }
+
+                if (document.activeElement !== apiIp) {
+                    apiIp.value = data.apiAllowedIp === 'auto' ? 'Detecting LAN IP...' : (data.apiAllowedIp || '');
                 }
                 
                 currentSettings = {
