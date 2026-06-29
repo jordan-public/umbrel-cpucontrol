@@ -71,7 +71,18 @@ async function startup() {
         await cpu.setTurboBoost(globalState.turboboost);
     } catch (err) {
         if (err.code === 'ENOENT') {
-            console.log('No saved state found. Using system defaults.');
+            console.log('No saved state found. Discovering current system state.');
+            try {
+                const currentState = await cpu.getCurrentState();
+                globalState.throttling = currentState.throttling;
+                if (currentState.turboSupported) {
+                    globalState.turboboost = currentState.turboboost;
+                } else {
+                    globalState.turboboost = false;
+                }
+            } catch (e) {
+                console.error('Failed to discover system state:', e);
+            }
         } else {
             console.error('Error reading saved state:', err);
         }
