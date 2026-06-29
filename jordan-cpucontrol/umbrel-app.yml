@@ -2,9 +2,10 @@ manifestVersion: 1
 id: jordan-cpucontrol
 category: Utilities
 name: Cpu Control
-version: "1.0.2"
+version: "1.0.3"
 description: Monitor and control CPU temperature, Turbo Boost, and Throttling on Intel CPUs like the NUC8i7BNH.
 tagline: Keep your node cool and efficient
+icon: "https://raw.githubusercontent.com/jordan-public/umbrel-cpucontrol/main/jordan-cpucontrol/icon.svg"
 developer: Umbrel Community
 website: "https://github.com/jordan-public/umbrel-cpucontrol"
 dependencies: []

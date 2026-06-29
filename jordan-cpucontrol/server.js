@@ -95,11 +95,11 @@ app.use((req, res, next) => {
         if (clientIp) {
             const parts = clientIp.split('.');
             if (parts.length === 4) {
-                // Ignore localhost and known Umbrel internal docker subnets (10.21.x.x)
-                if (!clientIp.startsWith('127.') && !clientIp.startsWith('10.21.')) {
-                    globalState.apiAllowedIp = `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
-                    saveState(); // Persist the auto-discovered IP block
-                }
+                // We unconditionally capture the first IP seen and compute its /24 block.
+                // This prevents the UI from getting stuck if accessed exclusively via Tor or a Docker proxy.
+                // The user can always manually edit this block in the UI.
+                globalState.apiAllowedIp = `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
+                saveState(); // Persist the auto-discovered IP block
             }
         }
     }
