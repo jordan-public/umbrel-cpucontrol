@@ -281,7 +281,7 @@
                 throttleValue.innerText = data.throttling + '%';
                 
                 apiToggle.checked = data.apiEnabled;
-                apiIp.value = data.apiAllowedIp || '';
+                apiIp.value = data.apiAllowedIp === 'auto' ? 'Detecting LAN IP...' : (data.apiAllowedIp || '');
                 
                 if (data.apiEnabled) {
                     apiIp.disabled = false;

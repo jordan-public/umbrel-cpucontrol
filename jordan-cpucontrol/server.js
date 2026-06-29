@@ -14,24 +14,11 @@ const STATE_FILE = path.join(DATA_DIR, 'state.json');
 // Generate a random token on startup. The UI served from '/' will be given this token to bypass API checks.
 const UI_TOKEN = crypto.randomBytes(16).toString('hex');
 
-function getLocalCidr() {
-    const interfaces = os.networkInterfaces();
-    for (const name of Object.keys(interfaces)) {
-        for (const iface of interfaces[name]) {
-            if (iface.family === 'IPv4' && !iface.internal) {
-                const parts = iface.address.split('.');
-                return `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
-            }
-        }
-    }
-    return '192.168.1.0/24';
-}
-
 let globalState = {
     throttling: 100,
     turboboost: true,
     apiEnabled: false,
-    apiAllowedIp: getLocalCidr()
+    apiAllowedIp: 'auto'
 };
 
 function ipToLong(ip) {
@@ -101,6 +88,24 @@ async function saveState() {
     }
 }
 
+// Auto-discover CIDR from the first incoming LAN request if set to 'auto'
+app.use((req, res, next) => {
+    if (globalState.apiAllowedIp === 'auto') {
+        const clientIp = extractIPv4(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '');
+        if (clientIp) {
+            const parts = clientIp.split('.');
+            if (parts.length === 4) {
+                // Ignore localhost and known Umbrel internal docker subnets (10.21.x.x)
+                if (!clientIp.startsWith('127.') && !clientIp.startsWith('10.21.')) {
+                    globalState.apiAllowedIp = `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
+                    saveState(); // Persist the auto-discovered IP block
+                }
+            }
+        }
+    }
+    next();
+});
+
 // Serve UI with injected token
 app.get('/', async (req, res) => {
     try {
@@ -125,6 +130,11 @@ app.use('/api', (req, res, next) => {
     // Otherwise, check if API is enabled
     if (!globalState.apiEnabled) {
         return res.status(403).json({ error: 'API access is disabled. Enable it in the UI.' });
+    }
+    
+    // If it's still 'auto', we haven't discovered a network yet. Deny to be safe.
+    if (globalState.apiAllowedIp === 'auto') {
+        return res.status(403).json({ error: 'API IP block not yet configured. Please access the UI first.' });
     }
     
     // Check IP
