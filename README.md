@@ -40,3 +40,6 @@ The app controls the CPU by interacting directly with the Linux `sysfs` filesyst
 - **Temperature:** Reads from `/sys/class/thermal/thermal_zone*/temp`.
 
 To work within Umbrel, the container must be run with the necessary privileges and volume mounts to access `/sys`.
+
+## Developer Notes
+For instructions on how to build and deploy this app to Docker Hub (intended for developers, not end users), please refer to the [DEPLOY.md](DEPLOY.md) file.
