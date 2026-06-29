@@ -209,7 +209,10 @@
         <div class="control-header">
             <span class="control-label">Accessible From (CIDR)</span>
         </div>
-        <input type="text" id="apiIp" style="width: 100%; padding: 10px; box-sizing: border-box; background: #333; color: white; border: none; border-radius: 4px;" disabled>
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="apiIp" style="flex: 1; padding: 10px; box-sizing: border-box; background: #333; color: white; border: none; border-radius: 4px;" disabled>
+            <button id="btnLocal" style="padding: 10px 15px; background: var(--primary); color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;" disabled>Local</button>
+        </div>
         <div class="temp-label" style="text-transform: none; margin-top: 10px;">
             Restrict API access to a specific IP range. The Umbrel UI will continue to work securely regardless of this setting.
         </div>
@@ -228,6 +231,7 @@
     
     const apiToggle = document.getElementById('apiToggle');
     const apiIp = document.getElementById('apiIp');
+    const btnLocal = document.getElementById('btnLocal');
     const ipBlockGroup = document.getElementById('ipBlockGroup');
     const app = document.getElementById('app');
 
@@ -285,9 +289,11 @@
                 
                 if (data.apiEnabled) {
                     apiIp.disabled = false;
+                    btnLocal.disabled = false;
                     ipBlockGroup.style.opacity = '1';
                 } else {
                     apiIp.disabled = true;
+                    btnLocal.disabled = true;
                     ipBlockGroup.style.opacity = '0.5';
                 }
                 
@@ -348,9 +354,11 @@
         const enabled = e.target.checked;
         if (enabled) {
             apiIp.disabled = false;
+            btnLocal.disabled = false;
             ipBlockGroup.style.opacity = '1';
         } else {
             apiIp.disabled = true;
+            btnLocal.disabled = true;
             ipBlockGroup.style.opacity = '0.5';
         }
         
@@ -366,6 +374,18 @@
             ...currentSettings,
             apiAllowedIp: e.target.value
         }).then(() => isUpdating = false);
+    });
+
+    btnLocal.addEventListener('click', () => {
+        isUpdating = true;
+        apiIp.value = 'Detecting LAN IP...';
+        saveSettings({
+            ...currentSettings,
+            apiAllowedIp: 'auto'
+        }).then(() => {
+            isUpdating = false;
+            fetchStatus(); // Immediately re-fetch to resolve 'auto' to the real IP
+        });
     });
 
     // Initial fetch and polling
