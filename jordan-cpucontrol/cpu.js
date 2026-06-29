@@ -1,5 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
+const os = require('os');
 
 // Sysfs paths
 const PSTATE_DIR = '/sys/devices/system/cpu/intel_pstate';
@@ -85,6 +86,34 @@ async function getTemperature() {
     return 45.0 + Math.random() * 5.0; // dummy temp
 }
 
+let previousCpu = getCpuTimes();
+
+function getCpuTimes() {
+    const cpus = os.cpus();
+    let idle = 0;
+    let total = 0;
+    if (!cpus) return { idle: 0, total: 0 };
+    for(const core of cpus) {
+        for(const type in core.times) {
+            total += core.times[type];
+        }
+        idle += core.times.idle;
+    }
+    return { idle, total };
+}
+
+function getCpuLoad() {
+    const start = previousCpu;
+    const end = getCpuTimes();
+    previousCpu = end;
+    
+    const idleDifference = end.idle - start.idle;
+    const totalDifference = end.total - start.total;
+    
+    if (totalDifference === 0) return 0;
+    return 100 - (100 * idleDifference / totalDifference);
+}
+
 async function getCurrentState() {
     // Attempt to read current state from sysfs
     const noTurbo = await safeRead(NO_TURBO_FILE);
@@ -105,8 +134,11 @@ async function getCurrentState() {
     
     const turboSupported = await checkTurboSupported();
     
+    const load = getCpuLoad();
+
     return {
         temperature: Math.round(temp * 10) / 10,
+        load: Math.round(load * 10) / 10,
         throttling,
         turboboost,
         turboSupported

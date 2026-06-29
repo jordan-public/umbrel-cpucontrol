@@ -18,7 +18,8 @@ let globalState = {
     throttling: 100,
     turboboost: true,
     apiEnabled: false,
-    apiAllowedIp: 'auto'
+    apiAllowedIp: 'auto',
+    tempUnit: 'C'
 };
 
 function ipToLong(ip) {
@@ -86,6 +87,7 @@ async function startup() {
         if (state.turboboost !== undefined) globalState.turboboost = state.turboboost;
         if (state.apiEnabled !== undefined) globalState.apiEnabled = state.apiEnabled;
         if (state.apiAllowedIp !== undefined) globalState.apiAllowedIp = state.apiAllowedIp;
+        if (state.tempUnit !== undefined) globalState.tempUnit = state.tempUnit;
         
         await cpu.setThrottling(globalState.throttling);
         await cpu.setTurboBoost(globalState.turboboost);
@@ -182,11 +184,13 @@ app.get('/api/status', async (req, res) => {
         
         res.json({
             temperature: state.temperature,
+            load: state.load,
             turboSupported: state.turboSupported,
             throttling: globalState.throttling,
             turboboost: globalState.turboboost,
             apiEnabled: globalState.apiEnabled,
-            apiAllowedIp: globalState.apiAllowedIp
+            apiAllowedIp: globalState.apiAllowedIp,
+            tempUnit: globalState.tempUnit
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -194,7 +198,7 @@ app.get('/api/status', async (req, res) => {
 });
 
 app.post('/api/settings', async (req, res) => {
-    const { throttling, turboboost, apiEnabled, apiAllowedIp } = req.body;
+    const { throttling, turboboost, apiEnabled, apiAllowedIp, tempUnit } = req.body;
     
     try {
         if (throttling !== undefined) {
@@ -210,6 +214,9 @@ app.post('/api/settings', async (req, res) => {
         }
         if (apiAllowedIp !== undefined) {
             globalState.apiAllowedIp = apiAllowedIp;
+        }
+        if (tempUnit !== undefined) {
+            globalState.tempUnit = tempUnit;
         }
         
         await saveState();

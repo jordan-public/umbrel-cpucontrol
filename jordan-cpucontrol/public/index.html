@@ -236,10 +236,22 @@
     </div>
 
     <div id="tab-main" class="tab-content active">
-        <div class="stat-card">
-        <div class="temp-display" id="tempDisplay">--°C</div>
-        <div class="temp-label">Temperature</div>
-    </div>
+        <div class="stat-card" style="display: flex; justify-content: space-around; align-items: center;">
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <div style="display: flex; align-items: center; justify-content: center;">
+                    <div class="temp-display" id="tempDisplay">--</div>
+                    <div class="unit-toggle">
+                        <button class="unit-btn active" id="btnC" onclick="setUnit('C')">°C</button>
+                        <button class="unit-btn" id="btnF" onclick="setUnit('F')">°F</button>
+                    </div>
+                </div>
+                <div class="temp-label">Temperature</div>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <div class="temp-display" id="loadDisplay">--%</div>
+                <div class="temp-label">CPU Load</div>
+            </div>
+        </div>
 
     <div class="control-group">
         <div class="control-header">
@@ -322,6 +334,9 @@
     const UI_TOKEN = '__UI_TOKEN__';
 
     const tempDisplay = document.getElementById('tempDisplay');
+    const loadDisplay = document.getElementById('loadDisplay');
+    const btnC = document.getElementById('btnC');
+    const btnF = document.getElementById('btnF');
     const turboToggle = document.getElementById('turboToggle');
     const turboSlider = document.getElementById('turboSlider');
     const turboWarning = document.getElementById('turboWarning');
@@ -338,7 +353,8 @@
         turboboost: true,
         throttling: 100,
         apiEnabled: false,
-        apiAllowedIp: 'auto'
+        apiAllowedIp: 'auto',
+        tempUnit: 'C'
     };
 
     let isUpdating = false;
@@ -370,15 +386,44 @@
         window.open(`${apiBaseUrl}/api/status`, '_blank');
     }
 
-    // Update UI color based on temp
-    function updateTempColor(temp) {
-        if (temp >= 85) {
-            tempDisplay.style.color = 'var(--danger)';
-        } else if (temp >= 70) {
-            tempDisplay.style.color = '#ffb86c'; // Warning color
+    function setUnit(unit) {
+        currentSettings.tempUnit = unit;
+        btnC.classList.toggle('active', unit === 'C');
+        btnF.classList.toggle('active', unit === 'F');
+        isUpdating = true;
+        saveSettings({
+            ...currentSettings,
+            tempUnit: unit
+        }).then(() => {
+            isUpdating = false;
+            fetchStatus(); // re-render immediate
+        });
+    }
+
+    function interpolateColor(p) {
+        let r, g, b;
+        if (p < 0.5) {
+            const p2 = p * 2;
+            r = Math.round(76 + (255 - 76) * p2);
+            g = Math.round(175 + (193 - 175) * p2);
+            b = Math.round(80 + (7 - 80) * p2);
         } else {
-            tempDisplay.style.color = 'var(--primary)';
+            const p2 = (p - 0.5) * 2;
+            r = Math.round(255 + (244 - 255) * p2);
+            g = Math.round(193 + (67 - 193) * p2);
+            b = Math.round(7 + (54 - 7) * p2);
         }
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    function updateColors(tempC, load) {
+        let tp = (tempC - 60) / (100 - 60);
+        tp = Math.max(0, Math.min(1, tp));
+        tempDisplay.style.color = interpolateColor(tp);
+
+        let lp = (load - 30) / (100 - 30);
+        lp = Math.max(0, Math.min(1, lp));
+        loadDisplay.style.color = interpolateColor(lp);
     }
 
     async function fetchStatus() {
@@ -392,9 +437,13 @@
                 console.error('API Error:', data.error);
                 return;
             }
+
+            const isF = data.tempUnit === 'F';
+            const displayTemp = isF ? (data.temperature * 9/5 + 32) : data.temperature;
+            tempDisplay.innerText = displayTemp.toFixed(1);
+            loadDisplay.innerText = (data.load || 0).toFixed(1) + '%';
             
-            tempDisplay.innerText = data.temperature.toFixed(1) + '°C';
-            updateTempColor(data.temperature);
+            updateColors(data.temperature, data.load || 0);
 
             if (!data.turboSupported) {
                 turboToggle.disabled = true;
@@ -430,11 +479,15 @@
                     apiIp.value = data.apiAllowedIp === 'auto' ? 'Detecting LAN IP...' : (data.apiAllowedIp || '');
                 }
                 
+                btnC.classList.toggle('active', data.tempUnit !== 'F');
+                btnF.classList.toggle('active', data.tempUnit === 'F');
+
                 currentSettings = {
                     turboboost: data.turboboost,
                     throttling: data.throttling,
                     apiEnabled: data.apiEnabled,
-                    apiAllowedIp: data.apiAllowedIp
+                    apiAllowedIp: data.apiAllowedIp,
+                    tempUnit: data.tempUnit || 'C'
                 };
             }
         } catch (err) {
