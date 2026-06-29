@@ -295,7 +295,6 @@
                 <input type="text" id="apiIp" style="flex: 1; padding: 10px; box-sizing: border-box; background: #333; color: white; border: none; border-radius: 4px;" disabled>
                 <button id="btnLocal" style="padding: 10px 15px; background: var(--primary); color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;" disabled>Browser's subnet</button>
             </div>
-            <div id="localDetectMessage" class="temp-label" style="text-transform: none; margin-top: 8px; color: var(--danger); display: none;"></div>
             <div class="temp-label" style="text-transform: none; margin-top: 10px; margin-bottom: 30px;">
                 Restrict API access to a specific IP range. The Umbrel UI will continue to work securely regardless of this setting.
             </div>
@@ -349,7 +348,6 @@
     const apiIp = document.getElementById('apiIp');
     const btnLocal = document.getElementById('btnLocal');
     const ipBlockGroup = document.getElementById('ipBlockGroup');
-    const localDetectMessage = document.getElementById('localDetectMessage');
     const app = document.getElementById('app');
 
     let currentSettings = {
@@ -456,9 +454,15 @@
         });
     }
 
-    function cidrFromIp(ip) {
+    function classfulCidrFromIp(ip) {
         const parts = ip.split('.');
-        return `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
+        const first = Number(parts[0]);
+
+        if (first <= 127) return `${parts[0]}.0.0.0/8`;
+        if (first <= 191) return `${parts[0]}.${parts[1]}.0.0/16`;
+        if (first <= 223) return `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
+
+        return `${ip}/32`;
     }
 
     async function fetchStatus() {
@@ -532,7 +536,7 @@
 
                 // Auto-resolve initial 'auto' state once from the browser/request IP reported by the server.
                 if (currentSettings.apiAllowedIp === 'auto' && !browserSubnetAttempted) {
-                    detectBrowserSubnet(data, true);
+                    detectBrowserSubnet(data);
                 }
             }
         } catch (err) {
@@ -601,38 +605,22 @@
 
     apiIp.addEventListener('change', (e) => {
         isUpdating = true;
-        localDetectMessage.style.display = 'none';
         saveSettings({
             ...currentSettings,
             apiAllowedIp: e.target.value
         }).then(() => isUpdating = false);
     });
 
-    async function detectBrowserSubnet(statusData, isAutomatic) {
+    async function detectBrowserSubnet(statusData) {
         isUpdating = true;
         browserSubnetAttempted = true;
-        localDetectMessage.style.display = 'none';
         btnLocal.disabled = true;
 
         try {
             const data = statusData || currentStatusData;
-            if (!data || !isIPv4(data.clientIp)) {
-                const message = "Could not detect the browser's IPv4 subnet from this request.";
-                localDetectMessage.innerText = message;
-                localDetectMessage.style.display = 'block';
-                if (!isAutomatic) alert(message);
-                return;
-            }
+            if (!data || !isIPv4(data.clientIp)) return;
 
-            if (data.clientIpVerifiable === false) {
-                const message = `Could not detect the browser's subnet. The app only sees Docker's bridge peer (${data.clientIp}), not the browser IP.`;
-                localDetectMessage.innerText = message;
-                localDetectMessage.style.display = 'block';
-                if (!isAutomatic) alert(message);
-                return;
-            }
-
-            const cidr = cidrFromIp(data.clientIp);
+            const cidr = classfulCidrFromIp(data.clientIp);
             apiIp.value = cidr;
             await saveSettings({
                 ...currentSettings,
@@ -640,11 +628,7 @@
             });
             await fetchStatus();
         } catch (err) {
-            const message = "Could not detect the browser's subnet.";
             console.error('Failed to detect browser subnet:', err);
-            localDetectMessage.innerText = message;
-            localDetectMessage.style.display = 'block';
-            if (!isAutomatic) alert(message);
         } finally {
             isUpdating = false;
             btnLocal.disabled = !apiToggle.checked;
@@ -652,7 +636,7 @@
     }
 
     btnLocal.addEventListener('click', () => {
-        detectBrowserSubnet(currentStatusData, false);
+        detectBrowserSubnet(currentStatusData);
     });
 
     // Initial fetch and polling

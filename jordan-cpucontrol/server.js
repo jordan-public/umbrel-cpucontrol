@@ -2,7 +2,6 @@ const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
-const os = require('os');
 const cpu = require('./cpu');
 const pkg = require('./package.json');
 
@@ -57,35 +56,6 @@ function extractIPv4(ip) {
     return normalizeIPv4(parts[0]);
 }
 
-function getContainerNetworks() {
-    const networks = [];
-    const interfaces = os.networkInterfaces();
-
-    for (const entries of Object.values(interfaces)) {
-        for (const entry of entries || []) {
-            if (entry.family !== 'IPv4' || entry.internal) continue;
-            if (!isValidIPv4(entry.address) || !isValidIPv4(entry.netmask)) continue;
-
-            const maskLong = ipToLong(entry.netmask);
-            const prefix = maskLong.toString(2).split('1').length - 1;
-            const networkLong = ipToLong(entry.address) & maskLong;
-            const network = [
-                (networkLong >>> 24) & 255,
-                (networkLong >>> 16) & 255,
-                (networkLong >>> 8) & 255,
-                networkLong & 255
-            ].join('.');
-
-            networks.push({
-                address: entry.address,
-                cidr: `${network}/${prefix}`
-            });
-        }
-    }
-
-    return networks;
-}
-
 function isIpInCidr(ip, cidr) {
     try {
         if (!isValidIPv4(ip) || typeof cidr !== 'string' || !cidr.includes('/')) return false;
@@ -97,11 +67,6 @@ function isIpInCidr(ip, cidr) {
     } catch {
         return false;
     }
-}
-
-function isContainerNetworkIp(ip) {
-    if (!isValidIPv4(ip)) return false;
-    return getContainerNetworks().some(network => isIpInCidr(ip, network.cidr));
 }
 
 function getForwardedHeaderIp(headerValue) {
@@ -135,12 +100,6 @@ function getClientIpInfo(req) {
     }
 
     return { ip: normalizeIPv4(remote), source: 'socket' };
-}
-
-function canCheckClientAgainstConfiguredCidr(clientInfo) {
-    if (clientInfo.source !== 'socket') return true;
-    if (!isContainerNetworkIp(clientInfo.ip)) return true;
-    return false;
 }
 
 function isConfiguredCidr(cidr) {
@@ -238,17 +197,10 @@ app.use('/api', (req, res, next) => {
     }
 
     // Check IP
-    const clientInfo = getClientIpInfo(req);
-    const clientIp = clientInfo.ip;
+    const clientIp = getClientIpInfo(req).ip;
 
     if (!isConfiguredCidr(globalState.apiAllowedIp) || globalState.apiAllowedIp === 'auto') {
         return res.status(403).json({ error: 'API access CIDR is not configured. Set it in the Umbrel UI first.' });
-    }
-
-    if (!canCheckClientAgainstConfiguredCidr(clientInfo)) {
-        return res.status(403).json({
-            error: `Access denied. Docker only exposed the bridge peer (${clientIp}) to the app, so the original requester IP cannot be verified. Use a path that forwards the real client IP.`
-        });
     }
 
     if (!isIpInCidr(clientIp, globalState.apiAllowedIp)) {
@@ -268,7 +220,6 @@ app.get('/api/status', async (req, res) => {
             version: pkg.version,
             clientIp: clientInfo.ip,
             clientIpSource: clientInfo.source,
-            clientIpVerifiable: canCheckClientAgainstConfiguredCidr(clientInfo),
             temperature: state.temperature,
             load: state.load,
             turboSupported: state.turboSupported,

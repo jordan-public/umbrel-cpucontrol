@@ -2,7 +2,7 @@ manifestVersion: 1
 id: jordan-cpucontrol
 category: Utilities
 name: Cpu Control
-version: "1.0.10"
+version: "1.0.11"
 description: >-
   Protect your Umbrel node from overheating and overloading! This app allows you to monitor and manage your CPU directly. Keep a close eye on hardware health with real-time CPU Temperature and CPU Load metrics. You can actively manage thermal performance by manually toggling Turbo Boost or dialing in a specific CPU Throttling percentage to instantly cool down a machine running too hot.
 
