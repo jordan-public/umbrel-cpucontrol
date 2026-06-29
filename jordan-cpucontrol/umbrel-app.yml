@@ -2,16 +2,15 @@ manifestVersion: 1
 id: jordan-cpucontrol
 category: Utilities
 name: Cpu Control
-version: "1.0.17"
+version: "1.0.18"
 description: >-
-  Protect your Umbrel node from overheating and overloading! This app allows you to monitor and manage your CPU directly. Keep a close eye on hardware health with real-time CPU Temperature and CPU Load metrics. You can actively manage thermal performance by manually toggling Turbo Boost or dialing in a specific CPU Throttling percentage to instantly cool down a machine running too hot.
+  Take full control of your node's performance! This app empowers you to monitor and manage your CPU directly, ensuring your Umbrel stays cool, quiet, and perfectly optimized. Keep a close eye on hardware health with real-time CPU Temperature and CPU Load metrics.
 
+  Whether you're looking to protect your hardware from overheating during heavy workloads, or simply wanting to maximize energy efficiency when peak power isn't needed, CPU Control has you covered. Actively manage thermal performance by manually toggling Turbo Boost or dialing in a precise CPU Throttling percentage to instantly cool down a machine running too hot.
 
   Additionally, it features a robust, secure built-in API allowing you to easily read these metrics and trigger controls directly from Home Assistant or other local automation platforms.
 
-
   Source code: https://github.com/jordan-public/umbrel-cpucontrol
-
 
   DISCLAIMER: Use at your own risk. The developer, Jordan Stojanovski, assumes no responsibility or liability for any hardware damage, system instability, or data loss that may arise from using this software to modify core CPU parameters.
 tagline: Keep your node cool and efficient
@@ -23,8 +22,8 @@ repo: "https://github.com/jordan-public/umbrel-cpucontrol"
 support: "https://github.com/jordan-public/umbrel-cpucontrol/issues"
 port: 3000
 gallery:
-  - 1.jpg
-  - 2.jpg
+  - "https://raw.githubusercontent.com/jordan-public/umbrel-cpucontrol/main/jordan-cpucontrol/1.jpg"
+  - "https://raw.githubusercontent.com/jordan-public/umbrel-cpucontrol/main/jordan-cpucontrol/2.jpg"
 path: ""
 defaultUsername: ""
 defaultPassword: ""

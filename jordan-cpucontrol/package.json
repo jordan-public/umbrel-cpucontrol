@@ -1,7 +1,7 @@
 {
   "name": "umbrel-cpucontrol",
-  "version": "1.0.17",
-  "description": "Protect your Umbrel node from overheating and overloading! Monitor and control CPU temperature, Load, Turbo Boost, and Throttling via UI and API.",
+  "version": "1.0.18",
+  "description": "Take full control of your node's performance to prevent overheating and maximize energy efficiency! Monitor and control CPU temperature, Load, Turbo Boost, and Throttling via UI and API.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

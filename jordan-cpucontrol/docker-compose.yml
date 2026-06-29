@@ -2,7 +2,7 @@ version: "3.7"
 
 services:
   web:
-    image: jordanst/cpucontrol:1.0.17
+    image: jordanst/cpucontrol:1.0.18
     restart: on-failure
     ports:
       - "3000:3000"
