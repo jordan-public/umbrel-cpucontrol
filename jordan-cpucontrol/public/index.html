@@ -159,6 +159,70 @@
             opacity: 0.5;
             pointer-events: none;
         }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #333;
+        }
+        .tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom: 2px solid var(--primary);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Example Code blocks */
+        .example-block {
+            background: #000;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+        .example-block code {
+            font-family: monospace;
+            color: #4af626;
+            word-break: break-all;
+            display: block;
+            margin-bottom: 10px;
+        }
+        .example-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .example-btn {
+            background: #333;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .example-btn:hover {
+            background: #444;
+        }
+        .example-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: var(--text-muted);
+        }
     </style>
 </head>
 <body>
@@ -166,7 +230,13 @@
 <div class="container" id="app">
     <h1>CPU Control</h1>
 
-    <div class="stat-card">
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('main')">Main</button>
+        <button class="tab-btn" onclick="switchTab('advanced')">Advanced</button>
+    </div>
+
+    <div id="tab-main" class="tab-content active">
+        <div class="stat-card">
         <div class="temp-display" id="tempDisplay">--°C</div>
         <div class="temp-label">Temperature</div>
     </div>
@@ -189,34 +259,63 @@
         </div>
         <input type="range" id="throttleSlider" min="10" max="100" value="100" step="1">
     </div>
+    </div> <!-- end tab-main -->
 
-    <hr style="border: 1px solid #333; margin: 30px 0;">
+    <div id="tab-advanced" class="tab-content">
+        <div class="control-group">
+            <div class="control-header">
+                <span class="control-label">API Access</span>
+                <label class="switch">
+                    <input type="checkbox" id="apiToggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="temp-label" style="text-transform: none; margin-top: 10px; color: var(--text-muted);">
+                Enable programmatic access to the CPU Control API over your local network.
+            </div>
+        </div>
 
-    <div class="control-group">
-        <div class="control-header">
-            <span class="control-label">API Access</span>
-            <label class="switch">
-                <input type="checkbox" id="apiToggle">
-                <span class="slider"></span>
-            </label>
+        <div class="control-group" id="ipBlockGroup" style="opacity: 0.5;">
+            <div class="control-header">
+                <span class="control-label">Accessible From (CIDR)</span>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="apiIp" style="flex: 1; padding: 10px; box-sizing: border-box; background: #333; color: white; border: none; border-radius: 4px;" disabled>
+                <button id="btnLocal" style="padding: 10px 15px; background: var(--primary); color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;" disabled>Local</button>
+            </div>
+            <div class="temp-label" style="text-transform: none; margin-top: 10px; margin-bottom: 30px;">
+                Restrict API access to a specific IP range. The Umbrel UI will continue to work securely regardless of this setting.
+            </div>
         </div>
-        <div class="temp-label" style="text-transform: none; margin-top: 10px; color: var(--text-muted);">
-            Enables programmatic access via <br><code>GET http://<umbrel-ip>:3000/api/status</code><br>and <code>POST http://<umbrel-ip>:3000/api/settings</code>
-        </div>
-    </div>
 
-    <div class="control-group" id="ipBlockGroup" style="opacity: 0.5;">
-        <div class="control-header">
-            <span class="control-label">Accessible From (CIDR)</span>
+        <h2 style="font-size: 18px; margin-top: 0;">API Examples</h2>
+        
+        <div class="example-block">
+            <div class="example-title">Read CPU Status</div>
+            <code id="code-get"></code>
+            <div class="example-actions">
+                <button class="example-btn" onclick="copyCode('code-get')">Copy</button>
+                <button class="example-btn" onclick="tryGet()">Try in new window</button>
+            </div>
         </div>
-        <div style="display: flex; gap: 10px;">
-            <input type="text" id="apiIp" style="flex: 1; padding: 10px; box-sizing: border-box; background: #333; color: white; border: none; border-radius: 4px;" disabled>
-            <button id="btnLocal" style="padding: 10px 15px; background: var(--primary); color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;" disabled>Local</button>
+
+        <div class="example-block">
+            <div class="example-title">Set CPU Throttling (e.g., 50%)</div>
+            <code id="code-post-throttle"></code>
+            <div class="example-actions">
+                <button class="example-btn" onclick="copyCode('code-post-throttle')">Copy</button>
+            </div>
         </div>
-        <div class="temp-label" style="text-transform: none; margin-top: 10px;">
-            Restrict API access to a specific IP range. The Umbrel UI will continue to work securely regardless of this setting.
+
+        <div class="example-block">
+            <div class="example-title">Set Turbo Boost (e.g., ON)</div>
+            <code id="code-post-turbo"></code>
+            <div class="example-actions">
+                <button class="example-btn" onclick="copyCode('code-post-turbo')">Copy</button>
+            </div>
         </div>
-    </div>
+    </div> <!-- end tab-advanced -->
+
 </div>
 
 <script>
@@ -243,6 +342,33 @@
     };
 
     let isUpdating = false;
+
+    // Set dynamic API URLs based on current host
+    const apiBaseUrl = window.location.protocol + "//" + window.location.hostname + ":3000";
+    document.getElementById('code-get').innerText = `curl ${apiBaseUrl}/api/status`;
+    document.getElementById('code-post-throttle').innerText = `curl -X POST ${apiBaseUrl}/api/settings \\\n  -H "Content-Type: application/json" \\\n  -d '{"throttling": 50}'`;
+    document.getElementById('code-post-turbo').innerText = `curl -X POST ${apiBaseUrl}/api/settings \\\n  -H "Content-Type: application/json" \\\n  -d '{"turboboost": true}'`;
+
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        
+        event.target.classList.add('active');
+        document.getElementById('tab-' + tabName).classList.add('active');
+    }
+
+    function copyCode(id) {
+        const text = document.getElementById(id).innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            alert("Copied to clipboard!");
+        }).catch(err => {
+            console.error('Failed to copy text: ', err);
+        });
+    }
+
+    function tryGet() {
+        window.open(`${apiBaseUrl}/api/status`, '_blank');
+    }
 
     // Update UI color based on temp
     function updateTempColor(temp) {
