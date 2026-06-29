@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Umbrel CPU Control</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-color: #ffffff;
+            --text-muted: #888888;
+            --primary: #bb86fc;
+            --danger: #cf6679;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 500px;
+            width: 100%;
+            background-color: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 24px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background-color: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .temp-display {
+            font-size: 48px;
+            font-weight: bold;
+            color: var(--primary);
+            transition: color 0.3s;
+        }
+
+        .temp-label {
+            color: var(--text-muted);
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 5px;
+        }
+
+        .control-group {
+            margin-bottom: 25px;
+        }
+
+        .control-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .control-label {
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .control-value {
+            font-size: 14px;
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        /* Slider */
+        input[type=range] {
+            width: 100%;
+            margin: 10px 0;
+            background-color: transparent;
+            -webkit-appearance: none;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            background: #333;
+            border: 0;
+            border-radius: 4px;
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            margin-top: -6px;
+            width: 20px;
+            height: 20px;
+            background: var(--primary);
+            border: 0;
+            border-radius: 10px;
+            cursor: pointer;
+            -webkit-appearance: none;
+        }
+
+        /* Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #333;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: var(--primary);
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .loading {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container" id="app">
+    <h1>CPU Control</h1>
+
+    <div class="stat-card">
+        <div class="temp-display" id="tempDisplay">--°C</div>
+        <div class="temp-label">Temperature</div>
+    </div>
+
+    <div class="control-group">
+        <div class="control-header">
+            <span class="control-label">Hyperthreading (SMT)</span>
+            <label class="switch">
+                <input type="checkbox" id="htToggle">
+                <span class="slider"></span>
+            </label>
+        </div>
+    </div>
+
+    <div class="control-group">
+        <div class="control-header">
+            <span class="control-label">CPU Throttling</span>
+            <span class="control-value" id="throttleValue">100%</span>
+        </div>
+        <input type="range" id="throttleSlider" min="10" max="100" value="100" step="1">
+    </div>
+</div>
+
+<script>
+    const tempDisplay = document.getElementById('tempDisplay');
+    const htToggle = document.getElementById('htToggle');
+    const throttleSlider = document.getElementById('throttleSlider');
+    const throttleValue = document.getElementById('throttleValue');
+    const app = document.getElementById('app');
+
+    let currentSettings = {
+        hyperthreading: true,
+        throttling: 100
+    };
+
+    let isUpdating = false;
+
+    // Update UI color based on temp
+    function updateTempColor(temp) {
+        if (temp >= 85) {
+            tempDisplay.style.color = 'var(--danger)';
+        } else if (temp >= 70) {
+            tempDisplay.style.color = '#ffb86c'; // Warning color
+        } else {
+            tempDisplay.style.color = 'var(--primary)';
+        }
+    }
+
+    async function fetchStatus() {
+        try {
+            const res = await fetch('/api/status');
+            const data = await res.json();
+            
+            tempDisplay.innerText = data.temperature.toFixed(1) + '°C';
+            updateTempColor(data.temperature);
+
+            // Only update controls if user isn't currently interacting
+            if (!isUpdating) {
+                htToggle.checked = data.hyperthreading;
+                throttleSlider.value = data.throttling;
+                throttleValue.innerText = data.throttling + '%';
+                
+                currentSettings.hyperthreading = data.hyperthreading;
+                currentSettings.throttling = data.throttling;
+            }
+        } catch (err) {
+            console.error('Failed to fetch status:', err);
+        }
+    }
+
+    async function saveSettings(settings) {
+        try {
+            app.classList.add('loading');
+            await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            });
+            currentSettings = { ...settings };
+        } catch (err) {
+            console.error('Failed to save settings:', err);
+        } finally {
+            app.classList.remove('loading');
+        }
+    }
+
+    // Event Listeners
+    htToggle.addEventListener('change', (e) => {
+        isUpdating = true;
+        saveSettings({
+            ...currentSettings,
+            hyperthreading: e.target.checked
+        }).then(() => isUpdating = false);
+    });
+
+    throttleSlider.addEventListener('input', (e) => {
+        throttleValue.innerText = e.target.value + '%';
+    });
+
+    throttleSlider.addEventListener('change', (e) => {
+        isUpdating = true;
+        saveSettings({
+            ...currentSettings,
+            throttling: parseInt(e.target.value, 10)
+        }).then(() => isUpdating = false);
+    });
+
+    // Initial fetch and polling
+    fetchStatus();
+    setInterval(fetchStatus, 5000);
+</script>
+
+</body>
+</html>
