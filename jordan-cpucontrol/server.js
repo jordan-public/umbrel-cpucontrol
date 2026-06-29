@@ -35,6 +35,26 @@ function extractIPv4(ip) {
     return firstIp;
 }
 
+function getBestClientIp(req) {
+    const xff = req.headers['x-forwarded-for'];
+    const xri = req.headers['x-real-ip'];
+    const remote = req.socket.remoteAddress;
+    
+    // Prefer proxy headers if they exist, starting with x-forwarded-for
+    if (xff) {
+        const ip = extractIPv4(xff);
+        if (ip && !ip.startsWith('10.') && !ip.startsWith('127.')) return ip;
+    }
+    if (xri) {
+        const ip = extractIPv4(xri);
+        if (ip && !ip.startsWith('10.') && !ip.startsWith('127.')) return ip;
+    }
+    
+    // Fallback to whatever we have
+    const fallback = extractIPv4(xff || xri || remote || '');
+    return fallback;
+}
+
 function isIpInCidr(ip, cidr) {
     try {
         const [range, bits] = cidr.split('/');
@@ -102,13 +122,10 @@ async function saveState() {
 // Auto-discover CIDR from the first incoming LAN request if set to 'auto'
 app.use((req, res, next) => {
     if (globalState.apiAllowedIp === 'auto') {
-        const clientIp = extractIPv4(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '');
+        const clientIp = getBestClientIp(req);
         if (clientIp) {
             const parts = clientIp.split('.');
             if (parts.length === 4) {
-                // We unconditionally capture the first IP seen and compute its /24 block.
-                // This prevents the UI from getting stuck if accessed exclusively via Tor or a Docker proxy.
-                // The user can always manually edit this block in the UI.
                 globalState.apiAllowedIp = `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
                 saveState(); // Persist the auto-discovered IP block
             }
@@ -149,8 +166,9 @@ app.use('/api', (req, res, next) => {
     }
     
     // Check IP
-    const clientIp = extractIPv4(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '');
-    if (!isIpInCidr(clientIp, globalState.apiAllowedIp)) {
+    const clientIp = getBestClientIp(req);
+    // Allow 0.0.0.0/0 as a catch-all
+    if (globalState.apiAllowedIp !== '0.0.0.0/0' && !isIpInCidr(clientIp, globalState.apiAllowedIp)) {
         return res.status(403).json({ error: `IP ${clientIp} not allowed by CIDR ${globalState.apiAllowedIp}` });
     }
     
