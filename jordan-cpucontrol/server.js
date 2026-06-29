@@ -1,7 +1,6 @@
 const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
-const crypto = require('crypto');
 const cpu = require('./cpu');
 const pkg = require('./package.json');
 
@@ -11,121 +10,11 @@ app.use(express.json());
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
 
-// Generate a random token on startup. The UI served from '/' will be given this token to bypass API checks.
-const UI_TOKEN = crypto.randomBytes(16).toString('hex');
-
 let globalState = {
     throttling: 100,
     turboboost: true,
-    apiEnabled: false,
-    apiAllowedIp: 'auto',
     tempUnit: 'C'
 };
-
-function ipToLong(ip) {
-    return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0;
-}
-
-function isValidIPv4(ip) {
-    if (!ip || !/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) return false;
-    return ip.split('.').every(octet => {
-        const value = Number(octet);
-        return Number.isInteger(value) && value >= 0 && value <= 255;
-    });
-}
-
-function normalizeIPv4(value) {
-    if (!value) return '';
-    let ip = String(value).trim().replace(/^"|"$/g, '');
-
-    if (ip.includes('::ffff:')) {
-        ip = ip.split('::ffff:')[1];
-    }
-
-    if (/^(\d{1,3}\.){3}\d{1,3}:\d+$/.test(ip)) {
-        ip = ip.slice(0, ip.lastIndexOf(':'));
-    }
-
-    const match = ip.match(/(\d{1,3}\.){3}\d{1,3}/);
-    return match && isValidIPv4(match[0]) ? match[0] : '';
-}
-
-function extractIPv4(ip) {
-    if (!ip) return '';
-    const parts = String(ip).split(','); // in case of multiple IPs in x-forwarded-for
-    return normalizeIPv4(parts[0]);
-}
-
-function isIpInCidr(ip, cidr) {
-    try {
-        if (!isValidIPv4(ip) || typeof cidr !== 'string' || !cidr.includes('/')) return false;
-        const [range, bitsValue] = cidr.split('/');
-        const bits = parseInt(bitsValue, 10);
-        if (!isValidIPv4(range) || Number.isNaN(bits) || bits < 0 || bits > 32) return false;
-        const mask = bits === 0 ? 0 : (0xFFFFFFFF << (32 - bits)) >>> 0;
-        return (ipToLong(ip) & mask) === (ipToLong(range) & mask);
-    } catch {
-        return false;
-    }
-}
-
-function getForwardedHeaderIp(headerValue) {
-    if (!headerValue) return '';
-    const firstForwarded = String(headerValue).split(',')[0];
-    const parts = firstForwarded.split(';').map(part => part.trim());
-    const forPart = parts.find(part => part.toLowerCase().startsWith('for='));
-    if (!forPart) return '';
-    return normalizeIPv4(forPart.slice(4));
-}
-
-function getClientIpInfo(req) {
-    const xff = req.headers['x-forwarded-for'];
-    const xri = req.headers['x-real-ip'];
-    const forwarded = req.headers.forwarded;
-    const remote = req.socket.remoteAddress;
-
-    if (forwarded) {
-        const ip = getForwardedHeaderIp(forwarded);
-        if (ip) return { ip, source: 'forwarded', raw: String(forwarded) };
-    }
-
-    if (xff) {
-        const ip = extractIPv4(xff);
-        if (ip) return { ip, source: 'x-forwarded-for', raw: String(xff) };
-    }
-
-    if (xri) {
-        const ip = extractIPv4(xri);
-        if (ip) return { ip, source: 'x-real-ip', raw: String(xri) };
-    }
-
-    return { ip: normalizeIPv4(remote), source: 'socket', raw: remote || '' };
-}
-
-function getRequestIpDebug(req, clientInfo) {
-    return {
-        selectedSource: clientInfo.source,
-        selectedRaw: clientInfo.raw || '',
-        socketRemoteAddress: req.socket.remoteAddress || '',
-        socketRemoteFamily: req.socket.remoteFamily || '',
-        socketRemotePort: req.socket.remotePort || null,
-        socketLocalAddress: req.socket.localAddress || '',
-        socketLocalPort: req.socket.localPort || null,
-        expressIp: req.ip || '',
-        expressIps: Array.isArray(req.ips) ? req.ips : [],
-        forwarded: req.headers.forwarded || '',
-        xForwardedFor: req.headers['x-forwarded-for'] || '',
-        xRealIp: req.headers['x-real-ip'] || ''
-    };
-}
-
-function isConfiguredCidr(cidr) {
-    if (cidr === '0.0.0.0/0') return true;
-    if (typeof cidr !== 'string' || !cidr.includes('/')) return false;
-    const [range, bits] = cidr.split('/');
-    const prefix = parseInt(bits, 10);
-    return isValidIPv4(range) && Number.isInteger(prefix) && prefix >= 0 && prefix <= 32;
-}
 
 // Ensure data dir exists
 async function ensureDataDir() {
@@ -146,8 +35,6 @@ async function startup() {
         
         if (state.throttling !== undefined) globalState.throttling = state.throttling;
         if (state.turboboost !== undefined) globalState.turboboost = state.turboboost;
-        if (state.apiEnabled !== undefined) globalState.apiEnabled = state.apiEnabled;
-        if (state.apiAllowedIp !== undefined) globalState.apiAllowedIp = state.apiAllowedIp;
         if (state.tempUnit !== undefined) globalState.tempUnit = state.tempUnit;
         
         await cpu.setThrottling(globalState.throttling);
@@ -182,11 +69,10 @@ async function saveState() {
     }
 }
 
-// Serve UI with injected token
+// Serve UI
 app.get('/', async (req, res) => {
     try {
-        let html = await fs.readFile(path.join(__dirname, 'public', 'index.html'), 'utf8');
-        html = html.replace('__UI_TOKEN__', UI_TOKEN);
+        const html = await fs.readFile(path.join(__dirname, 'public', 'index.html'), 'utf8');
         res.send(html);
     } catch (err) {
         res.status(500).send('Error loading UI');
@@ -196,58 +82,18 @@ app.get('/', async (req, res) => {
 // Serve static assets (if any)
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
-// API Access Control Middleware
-app.use('/api', (req, res, next) => {
-    const queryUiToken = typeof req.query.uiToken === 'string' ? req.query.uiToken : '';
-
-    // If request comes from the UI (has the token), allow it unconditionally
-    if (req.headers['x-ui-token'] === UI_TOKEN || queryUiToken === UI_TOKEN) {
-        return next();
-    }
-    
-    // Otherwise, check if API is enabled
-    if (!globalState.apiEnabled) {
-        return res.status(403).json({ error: 'API access is disabled. Enable it in the UI.' });
-    }
-    
-    // Allow 0.0.0.0/0 as a catch-all bypass
-    if (globalState.apiAllowedIp === '0.0.0.0/0') {
-        return next();
-    }
-
-    // Check IP
-    const clientIp = getClientIpInfo(req).ip;
-
-    if (!isConfiguredCidr(globalState.apiAllowedIp) || globalState.apiAllowedIp === 'auto') {
-        return res.status(403).json({ error: 'API access CIDR is not configured. Set it in the Umbrel UI first.' });
-    }
-
-    if (!isIpInCidr(clientIp, globalState.apiAllowedIp)) {
-        return res.status(403).json({ error: `Access denied. Your IP (${clientIp}) is not within the allowed CIDR block (${globalState.apiAllowedIp}).` });
-    }
-    
-    next();
-});
-
 // API Endpoints
 app.get('/api/status', async (req, res) => {
     try {
         const state = await cpu.getCurrentState();
-        const clientInfo = getClientIpInfo(req);
         
         res.json({
             version: pkg.version,
-            clientIp: clientInfo.ip,
-            clientIpSource: clientInfo.source,
-            clientIpRaw: clientInfo.raw || '',
-            requestIpDebug: getRequestIpDebug(req, clientInfo),
             temperature: state.temperature,
             load: state.load,
             turboSupported: state.turboSupported,
             throttling: globalState.throttling,
             turboboost: globalState.turboboost,
-            apiEnabled: globalState.apiEnabled,
-            apiAllowedIp: globalState.apiAllowedIp,
             tempUnit: globalState.tempUnit
         });
     } catch (err) {
@@ -256,7 +102,7 @@ app.get('/api/status', async (req, res) => {
 });
 
 app.post('/api/settings', async (req, res) => {
-    const { throttling, turboboost, apiEnabled, apiAllowedIp, tempUnit } = req.body;
+    const { throttling, turboboost, tempUnit } = req.body;
     
     try {
         if (throttling !== undefined) {
@@ -266,12 +112,6 @@ app.post('/api/settings', async (req, res) => {
         if (turboboost !== undefined) {
             globalState.turboboost = !!turboboost;
             await cpu.setTurboBoost(globalState.turboboost);
-        }
-        if (apiEnabled !== undefined) {
-            globalState.apiEnabled = !!apiEnabled;
-        }
-        if (apiAllowedIp !== undefined) {
-            globalState.apiAllowedIp = apiAllowedIp;
         }
         if (tempUnit !== undefined) {
             globalState.tempUnit = tempUnit;

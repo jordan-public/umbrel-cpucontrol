@@ -274,32 +274,6 @@
     </div> <!-- end tab-main -->
 
     <div id="tab-advanced" class="tab-content">
-        <div class="control-group">
-            <div class="control-header">
-                <span class="control-label">API Access</span>
-                <label class="switch">
-                    <input type="checkbox" id="apiToggle">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="temp-label" style="text-transform: none; margin-top: 10px; color: var(--text-muted);">
-                Enable programmatic access to the CPU Control API over your local network.
-            </div>
-        </div>
-
-        <div class="control-group" id="ipBlockGroup" style="opacity: 0.5;">
-            <div class="control-header">
-                <span class="control-label">Accessible From (CIDR)</span>
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <input type="text" id="apiIp" style="flex: 1; padding: 10px; box-sizing: border-box; background: #333; color: white; border: none; border-radius: 4px;" disabled>
-                <button id="btnLocal" style="padding: 10px 15px; background: var(--primary); color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;" disabled>Browser's subnet</button>
-            </div>
-            <div class="temp-label" style="text-transform: none; margin-top: 10px; margin-bottom: 30px;">
-                Restrict API access to a specific IP range. The Umbrel UI will continue to work securely regardless of this setting.
-            </div>
-        </div>
-
         <h2 style="font-size: 18px; margin-top: 0;">API Examples</h2>
         
         <div class="example-block">
@@ -332,8 +306,6 @@
 </div>
 
 <script>
-    const UI_TOKEN = '__UI_TOKEN__';
-
     const tempDisplay = document.getElementById('tempDisplay');
     const loadDisplay = document.getElementById('loadDisplay');
     const btnC = document.getElementById('btnC');
@@ -343,22 +315,13 @@
     const turboWarning = document.getElementById('turboWarning');
     const throttleSlider = document.getElementById('throttleSlider');
     const throttleValue = document.getElementById('throttleValue');
-    
-    const apiToggle = document.getElementById('apiToggle');
-    const apiIp = document.getElementById('apiIp');
-    const btnLocal = document.getElementById('btnLocal');
-    const ipBlockGroup = document.getElementById('ipBlockGroup');
     const app = document.getElementById('app');
 
     let currentSettings = {
         turboboost: true,
         throttling: 100,
-        apiEnabled: false,
-        apiAllowedIp: 'auto',
         tempUnit: 'C'
     };
-    let currentStatusData = null;
-    let browserSubnetAttempted = false;
 
     let isUpdating = false;
 
@@ -403,7 +366,7 @@
     }
 
     function tryGet() {
-        window.open(`${apiBaseUrl}/api/status?uiToken=${encodeURIComponent(UI_TOKEN)}`, '_blank');
+        window.open(`${apiBaseUrl}/api/status`, '_blank');
     }
 
     function setUnit(unit) {
@@ -414,10 +377,10 @@
         saveSettings({
             ...currentSettings,
             tempUnit: unit
-        }).then(() => {
+        }).finally(() => {
             isUpdating = false;
             fetchStatus(); // re-render immediate
-        });
+        }).catch(() => {});
     }
 
     function interpolateColor(p) {
@@ -446,23 +409,10 @@
         loadDisplay.style.color = interpolateColor(lp);
     }
 
-    function isIPv4(ip) {
-        if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(ip || '')) return false;
-        return ip.split('.').every(part => {
-            const value = Number(part);
-            return Number.isInteger(value) && value >= 0 && value <= 255;
-        });
-    }
-
-    function requesterCidrFromIp(ip) {
-        return `${ip}/32`;
-    }
-
     async function fetchStatusData() {
-        const res = await fetch('/api/status', {
-            headers: { 'X-UI-Token': UI_TOKEN }
-        });
+        const res = await fetch('/api/status');
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Status request failed: ${res.status}`);
         if (data.error) throw new Error(data.error);
         return data;
     }
@@ -471,7 +421,6 @@
         try {
             const data = await fetchStatusData();
             
-            currentStatusData = data;
             if (data.version) {
                 document.getElementById('versionDisplay').innerText = 'v' + data.version;
             }
@@ -499,39 +448,14 @@
                     throttleSlider.value = data.throttling;
                     throttleValue.innerText = data.throttling + '%';
                 }
-                
-                if (document.activeElement !== apiToggle) {
-                    apiToggle.checked = data.apiEnabled;
-                    if (data.apiEnabled) {
-                        apiIp.disabled = false;
-                        btnLocal.disabled = false;
-                        ipBlockGroup.style.opacity = '1';
-                    } else {
-                        apiIp.disabled = true;
-                        btnLocal.disabled = true;
-                        ipBlockGroup.style.opacity = '0.5';
-                    }
-                }
-
-                if (document.activeElement !== apiIp) {
-                    apiIp.value = data.apiEnabled ? (data.apiAllowedIp === 'auto' ? '' : (data.apiAllowedIp || '')) : '';
-                }
-                
                 btnC.classList.toggle('active', data.tempUnit !== 'F');
                 btnF.classList.toggle('active', data.tempUnit === 'F');
 
                 currentSettings = {
                     turboboost: data.turboboost,
                     throttling: data.throttling,
-                    apiEnabled: data.apiEnabled,
-                    apiAllowedIp: data.apiAllowedIp,
                     tempUnit: data.tempUnit || 'C'
                 };
-
-                // Auto-resolve initial 'auto' state once when API access is enabled.
-                if (currentSettings.apiEnabled && currentSettings.apiAllowedIp === 'auto' && !browserSubnetAttempted) {
-                    detectBrowserSubnet(data);
-                }
             }
         } catch (err) {
             console.error('Failed to fetch status:', err);
@@ -541,17 +465,21 @@
     async function saveSettings(settings) {
         try {
             app.classList.add('loading');
-            await fetch('/api/settings', {
+            const res = await fetch('/api/settings', {
                 method: 'POST',
                 headers: { 
-                    'Content-Type': 'application/json',
-                    'X-UI-Token': UI_TOKEN
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(settings)
             });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.error) {
+                throw new Error(data.error || `Settings request failed: ${res.status}`);
+            }
             currentSettings = { ...settings };
         } catch (err) {
             console.error('Failed to save settings:', err);
+            throw err;
         } finally {
             app.classList.remove('loading');
         }
@@ -563,7 +491,7 @@
         saveSettings({
             ...currentSettings,
             turboboost: e.target.checked
-        }).then(() => isUpdating = false);
+        }).finally(() => isUpdating = false).catch(() => {});
     });
 
     throttleSlider.addEventListener('input', (e) => {
@@ -575,70 +503,7 @@
         saveSettings({
             ...currentSettings,
             throttling: parseInt(e.target.value, 10)
-        }).then(() => isUpdating = false);
-    });
-
-    apiToggle.addEventListener('change', (e) => {
-        isUpdating = true;
-        const enabled = e.target.checked;
-        const nextSettings = {
-            ...currentSettings,
-            apiEnabled: enabled
-        };
-
-        if (enabled) {
-            apiIp.disabled = false;
-            btnLocal.disabled = false;
-            ipBlockGroup.style.opacity = '1';
-
-            if (!apiIp.value.trim() && currentStatusData && isIPv4(currentStatusData.clientIp)) {
-                nextSettings.apiAllowedIp = requesterCidrFromIp(currentStatusData.clientIp);
-                apiIp.value = nextSettings.apiAllowedIp;
-            }
-        } else {
-            apiIp.disabled = true;
-            btnLocal.disabled = true;
-            ipBlockGroup.style.opacity = '0.5';
-            apiIp.value = '';
-        }
-        
-        saveSettings(nextSettings).then(() => isUpdating = false);
-    });
-
-    apiIp.addEventListener('change', (e) => {
-        isUpdating = true;
-        saveSettings({
-            ...currentSettings,
-            apiAllowedIp: e.target.value
-        }).then(() => isUpdating = false);
-    });
-
-    async function detectBrowserSubnet(statusData) {
-        isUpdating = true;
-        browserSubnetAttempted = true;
-        btnLocal.disabled = true;
-
-        try {
-            const data = statusData || await fetchStatusData();
-            if (!data || !isIPv4(data.clientIp)) return;
-
-            const cidr = requesterCidrFromIp(data.clientIp);
-            apiIp.value = cidr;
-            await saveSettings({
-                ...currentSettings,
-                apiAllowedIp: cidr
-            });
-            await fetchStatus();
-        } catch (err) {
-            console.error('Failed to detect browser subnet:', err);
-        } finally {
-            isUpdating = false;
-            btnLocal.disabled = !apiToggle.checked;
-        }
-    }
-
-    btnLocal.addEventListener('click', () => {
-        detectBrowserSubnet();
+        }).finally(() => isUpdating = false).catch(() => {});
     });
 
     // Initial fetch and polling

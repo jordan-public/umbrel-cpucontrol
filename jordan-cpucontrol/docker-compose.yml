@@ -2,9 +2,10 @@ version: "3.7"
 
 services:
   web:
-    image: jordanst/cpucontrol:1.0.14
+    image: jordanst/cpucontrol:1.0.16
     restart: on-failure
-    network_mode: "host"
+    ports:
+      - "3000:3000"
     volumes:
       - /sys:/sys
       - ${APP_DATA_DIR}/data:/usr/src/app/data
