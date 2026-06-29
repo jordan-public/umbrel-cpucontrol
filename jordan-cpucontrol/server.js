@@ -3,15 +3,11 @@ const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
 const os = require('os');
-const dns = require('dns').promises;
-const { execFile } = require('child_process');
-const { promisify } = require('util');
 const cpu = require('./cpu');
 const pkg = require('./package.json');
 
 const app = express();
 app.use(express.json());
-const execFileAsync = promisify(execFile);
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
@@ -141,89 +137,6 @@ function getClientIpInfo(req) {
     return { ip: normalizeIPv4(remote), source: 'socket' };
 }
 
-function isLoopbackIp(ip) {
-    return ip.startsWith('127.');
-}
-
-function isLinkLocalIp(ip) {
-    return ip.startsWith('169.254.');
-}
-
-function isUsableUmbrelLocalIp(ip) {
-    if (!isValidIPv4(ip)) return false;
-    if (ip === '0.0.0.0' || isLoopbackIp(ip) || isLinkLocalIp(ip)) return false;
-    if (isContainerNetworkIp(ip)) return false;
-    return true;
-}
-
-function cidrFromIPv4(ip) {
-    const parts = ip.split('.');
-    return `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
-}
-
-async function resolveHostIPv4(hostname) {
-    try {
-        const addresses = await dns.lookup(hostname, { family: 4, all: true });
-        return addresses.map(entry => entry.address).filter(isValidIPv4);
-    } catch {
-        return [];
-    }
-}
-
-async function getRouteSourceIp() {
-    try {
-        const { stdout } = await execFileAsync('ip', ['route', 'get', '1.1.1.1'], { timeout: 1500 });
-        const match = stdout.match(/\bsrc\s+((?:\d{1,3}\.){3}\d{1,3})\b/);
-        return match ? normalizeIPv4(match[1]) : '';
-    } catch {
-        return '';
-    }
-}
-
-async function detectUmbrelLocalCidr() {
-    const candidates = [];
-    const envNames = [
-        'UMBREL_HOST_IP',
-        'UMBREL_LOCAL_IP',
-        'UMBREL_IP',
-        'HOST_IP',
-        'LOCAL_IP'
-    ];
-
-    for (const name of envNames) {
-        candidates.push({ ip: normalizeIPv4(process.env[name]), source: `env:${name}` });
-    }
-
-    for (const hostname of ['umbrel.local', 'umbrel', 'host.docker.internal']) {
-        const addresses = await resolveHostIPv4(hostname);
-        for (const address of addresses) {
-            candidates.push({ ip: address, source: `dns:${hostname}` });
-        }
-    }
-
-    for (const network of getContainerNetworks()) {
-        candidates.push({ ip: network.address, source: 'container-interface' });
-    }
-
-    candidates.push({ ip: await getRouteSourceIp(), source: 'route-src' });
-
-    const chosen = candidates.find(candidate => isUsableUmbrelLocalIp(candidate.ip));
-    if (chosen) {
-        return {
-            cidr: cidrFromIPv4(chosen.ip),
-            ip: chosen.ip,
-            source: chosen.source
-        };
-    }
-
-    return {
-        error: 'Could not detect Umbrel LAN subnet from host/DNS/route data. The container only exposed Docker network addresses.',
-        rejectedCandidates: candidates
-            .filter(candidate => candidate.ip)
-            .map(candidate => `${candidate.source}:${candidate.ip}`)
-    };
-}
-
 function canCheckClientAgainstConfiguredCidr(clientInfo) {
     if (clientInfo.source !== 'socket') return true;
     if (!isContainerNetworkIp(clientInfo.ip)) return true;
@@ -236,19 +149,6 @@ function isConfiguredCidr(cidr) {
     const [range, bits] = cidr.split('/');
     const prefix = parseInt(bits, 10);
     return isValidIPv4(range) && Number.isInteger(prefix) && prefix >= 0 && prefix <= 32;
-}
-
-async function ensureAutoAllowedIpResolved() {
-    if (globalState.apiAllowedIp !== 'auto') return;
-
-    const detection = await detectUmbrelLocalCidr();
-    if (detection.cidr) {
-        globalState.apiAllowedIp = detection.cidr;
-        await saveState();
-        console.log(`Auto-detected Umbrel local CIDR: ${detection.cidr} (${detection.source})`);
-    } else {
-        console.warn(detection.error, detection.rejectedCandidates || []);
-    }
 }
 
 // Ensure data dir exists
@@ -273,8 +173,6 @@ async function startup() {
         if (state.apiEnabled !== undefined) globalState.apiEnabled = state.apiEnabled;
         if (state.apiAllowedIp !== undefined) globalState.apiAllowedIp = state.apiAllowedIp;
         if (state.tempUnit !== undefined) globalState.tempUnit = state.tempUnit;
-
-        await ensureAutoAllowedIpResolved();
         
         await cpu.setThrottling(globalState.throttling);
         await cpu.setTurboBoost(globalState.turboboost);
@@ -289,7 +187,6 @@ async function startup() {
                 } else {
                     globalState.turboboost = false;
                 }
-                await ensureAutoAllowedIpResolved();
             } catch (e) {
                 console.error('Failed to discover system state:', e);
             }
@@ -381,18 +278,6 @@ app.get('/api/status', async (req, res) => {
             apiAllowedIp: globalState.apiAllowedIp,
             tempUnit: globalState.tempUnit
         });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.get('/api/umbrel-local-cidr', async (req, res) => {
-    try {
-        const detection = await detectUmbrelLocalCidr();
-        if (detection.cidr) {
-            return res.json(detection);
-        }
-        res.status(404).json(detection);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

@@ -293,7 +293,7 @@
             </div>
             <div style="display: flex; gap: 10px;">
                 <input type="text" id="apiIp" style="flex: 1; padding: 10px; box-sizing: border-box; background: #333; color: white; border: none; border-radius: 4px;" disabled>
-                <button id="btnLocal" style="padding: 10px 15px; background: var(--primary); color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;" disabled>Umbrel's Local</button>
+                <button id="btnLocal" style="padding: 10px 15px; background: var(--primary); color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;" disabled>Browser's subnet</button>
             </div>
             <div id="localDetectMessage" class="temp-label" style="text-transform: none; margin-top: 8px; color: var(--danger); display: none;"></div>
             <div class="temp-label" style="text-transform: none; margin-top: 10px; margin-bottom: 30px;">
@@ -359,7 +359,8 @@
         apiAllowedIp: 'auto',
         tempUnit: 'C'
     };
-    let autoDetectAttempted = false;
+    let currentStatusData = null;
+    let browserSubnetAttempted = false;
 
     let isUpdating = false;
 
@@ -447,6 +448,19 @@
         loadDisplay.style.color = interpolateColor(lp);
     }
 
+    function isIPv4(ip) {
+        if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(ip || '')) return false;
+        return ip.split('.').every(part => {
+            const value = Number(part);
+            return Number.isInteger(value) && value >= 0 && value <= 255;
+        });
+    }
+
+    function cidrFromIp(ip) {
+        const parts = ip.split('.');
+        return `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
+    }
+
     async function fetchStatus() {
         try {
             const res = await fetch('/api/status', {
@@ -459,6 +473,7 @@
                 return;
             }
             
+            currentStatusData = data;
             if (data.version) {
                 document.getElementById('versionDisplay').innerText = 'v' + data.version;
             }
@@ -501,7 +516,7 @@
                 }
 
                 if (document.activeElement !== apiIp) {
-                    apiIp.value = data.apiAllowedIp === 'auto' ? 'Detecting LAN IP...' : (data.apiAllowedIp || '');
+                    apiIp.value = data.apiAllowedIp === 'auto' ? "Detecting browser's subnet..." : (data.apiAllowedIp || '');
                 }
                 
                 btnC.classList.toggle('active', data.tempUnit !== 'F');
@@ -515,9 +530,9 @@
                     tempUnit: data.tempUnit || 'C'
                 };
 
-                // Auto-resolve initial 'auto' state once, using only server-side Umbrel host data.
-                if (currentSettings.apiAllowedIp === 'auto' && !autoDetectAttempted) {
-                    detectUmbrelLocal(true);
+                // Auto-resolve initial 'auto' state once from the browser/request IP reported by the server.
+                if (currentSettings.apiAllowedIp === 'auto' && !browserSubnetAttempted) {
+                    detectBrowserSubnet(data, true);
                 }
             }
         } catch (err) {
@@ -593,35 +608,40 @@
         }).then(() => isUpdating = false);
     });
 
-    async function detectUmbrelLocal(isAutomatic) {
+    async function detectBrowserSubnet(statusData, isAutomatic) {
         isUpdating = true;
-        autoDetectAttempted = true;
+        browserSubnetAttempted = true;
         localDetectMessage.style.display = 'none';
         btnLocal.disabled = true;
 
         try {
-            const res = await fetch('/api/umbrel-local-cidr', {
-                headers: { 'X-UI-Token': UI_TOKEN }
-            });
-            const data = await res.json();
-
-            if (!res.ok || !data.cidr) {
-                const message = data.error || "Could not detect Umbrel's local subnet.";
+            const data = statusData || currentStatusData;
+            if (!data || !isIPv4(data.clientIp)) {
+                const message = "Could not detect the browser's IPv4 subnet from this request.";
                 localDetectMessage.innerText = message;
                 localDetectMessage.style.display = 'block';
                 if (!isAutomatic) alert(message);
                 return;
             }
 
-            apiIp.value = data.cidr;
+            if (data.clientIpVerifiable === false) {
+                const message = `Could not detect the browser's subnet. The app only sees Docker's bridge peer (${data.clientIp}), not the browser IP.`;
+                localDetectMessage.innerText = message;
+                localDetectMessage.style.display = 'block';
+                if (!isAutomatic) alert(message);
+                return;
+            }
+
+            const cidr = cidrFromIp(data.clientIp);
+            apiIp.value = cidr;
             await saveSettings({
                 ...currentSettings,
-                apiAllowedIp: data.cidr
+                apiAllowedIp: cidr
             });
             await fetchStatus();
         } catch (err) {
-            const message = "Could not detect Umbrel's local subnet.";
-            console.error('Failed to detect Umbrel local CIDR:', err);
+            const message = "Could not detect the browser's subnet.";
+            console.error('Failed to detect browser subnet:', err);
             localDetectMessage.innerText = message;
             localDetectMessage.style.display = 'block';
             if (!isAutomatic) alert(message);
@@ -632,7 +652,7 @@
     }
 
     btnLocal.addEventListener('click', () => {
-        detectUmbrelLocal(false);
+        detectBrowserSubnet(currentStatusData, false);
     });
 
     // Initial fetch and polling
