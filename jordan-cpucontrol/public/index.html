@@ -176,9 +176,10 @@
             <span class="control-label">Turbo Boost</span>
             <label class="switch">
                 <input type="checkbox" id="turboToggle">
-                <span class="slider"></span>
+                <span class="slider" id="turboSlider"></span>
             </label>
         </div>
+        <div class="temp-label" id="turboWarning" style="display:none; color: var(--danger); margin-top: 10px;">Not supported on this CPU</div>
     </div>
 
     <div class="control-group">
@@ -188,18 +189,53 @@
         </div>
         <input type="range" id="throttleSlider" min="10" max="100" value="100" step="1">
     </div>
+
+    <hr style="border: 1px solid #333; margin: 30px 0;">
+
+    <div class="control-group">
+        <div class="control-header">
+            <span class="control-label">API Access</span>
+            <label class="switch">
+                <input type="checkbox" id="apiToggle">
+                <span class="slider"></span>
+            </label>
+        </div>
+        <div class="temp-label" style="text-transform: none; margin-top: 10px; color: var(--text-muted);">
+            Enables programmatic access via <br><code>GET /api/status</code> and <code>POST /api/settings</code>
+        </div>
+    </div>
+
+    <div class="control-group" id="ipBlockGroup" style="opacity: 0.5;">
+        <div class="control-header">
+            <span class="control-label">Accessible From (CIDR)</span>
+        </div>
+        <input type="text" id="apiIp" style="width: 100%; padding: 10px; box-sizing: border-box; background: #333; color: white; border: none; border-radius: 4px;" disabled>
+        <div class="temp-label" style="text-transform: none; margin-top: 10px;">
+            Restrict API access to a specific IP range. The Umbrel UI will continue to work securely regardless of this setting.
+        </div>
+    </div>
 </div>
 
 <script>
+    const UI_TOKEN = '__UI_TOKEN__';
+
     const tempDisplay = document.getElementById('tempDisplay');
     const turboToggle = document.getElementById('turboToggle');
+    const turboSlider = document.getElementById('turboSlider');
+    const turboWarning = document.getElementById('turboWarning');
     const throttleSlider = document.getElementById('throttleSlider');
     const throttleValue = document.getElementById('throttleValue');
+    
+    const apiToggle = document.getElementById('apiToggle');
+    const apiIp = document.getElementById('apiIp');
+    const ipBlockGroup = document.getElementById('ipBlockGroup');
     const app = document.getElementById('app');
 
     let currentSettings = {
         turboboost: true,
-        throttling: 100
+        throttling: 100,
+        apiEnabled: false,
+        apiAllowedIp: '192.168.1.0/24'
     };
 
     let isUpdating = false;
@@ -217,20 +253,50 @@
 
     async function fetchStatus() {
         try {
-            const res = await fetch('/api/status');
+            const res = await fetch('/api/status', {
+                headers: { 'X-UI-Token': UI_TOKEN }
+            });
             const data = await res.json();
+            
+            if (data.error) {
+                console.error('API Error:', data.error);
+                return;
+            }
             
             tempDisplay.innerText = data.temperature.toFixed(1) + '°C';
             updateTempColor(data.temperature);
 
+            if (!data.turboSupported) {
+                turboToggle.disabled = true;
+                turboSlider.style.backgroundColor = '#555';
+                turboWarning.style.display = 'block';
+            }
+
             // Only update controls if user isn't currently interacting
             if (!isUpdating) {
-                turboToggle.checked = data.turboboost;
+                if (data.turboSupported) {
+                    turboToggle.checked = data.turboboost;
+                }
                 throttleSlider.value = data.throttling;
                 throttleValue.innerText = data.throttling + '%';
                 
-                currentSettings.turboboost = data.turboboost;
-                currentSettings.throttling = data.throttling;
+                apiToggle.checked = data.apiEnabled;
+                apiIp.value = data.apiAllowedIp || '';
+                
+                if (data.apiEnabled) {
+                    apiIp.disabled = false;
+                    ipBlockGroup.style.opacity = '1';
+                } else {
+                    apiIp.disabled = true;
+                    ipBlockGroup.style.opacity = '0.5';
+                }
+                
+                currentSettings = {
+                    turboboost: data.turboboost,
+                    throttling: data.throttling,
+                    apiEnabled: data.apiEnabled,
+                    apiAllowedIp: data.apiAllowedIp
+                };
             }
         } catch (err) {
             console.error('Failed to fetch status:', err);
@@ -242,7 +308,10 @@
             app.classList.add('loading');
             await fetch('/api/settings', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-UI-Token': UI_TOKEN
+                },
                 body: JSON.stringify(settings)
             });
             currentSettings = { ...settings };
@@ -271,6 +340,31 @@
         saveSettings({
             ...currentSettings,
             throttling: parseInt(e.target.value, 10)
+        }).then(() => isUpdating = false);
+    });
+
+    apiToggle.addEventListener('change', (e) => {
+        isUpdating = true;
+        const enabled = e.target.checked;
+        if (enabled) {
+            apiIp.disabled = false;
+            ipBlockGroup.style.opacity = '1';
+        } else {
+            apiIp.disabled = true;
+            ipBlockGroup.style.opacity = '0.5';
+        }
+        
+        saveSettings({
+            ...currentSettings,
+            apiEnabled: enabled
+        }).then(() => isUpdating = false);
+    });
+
+    apiIp.addEventListener('change', (e) => {
+        isUpdating = true;
+        saveSettings({
+            ...currentSettings,
+            apiAllowedIp: e.target.value
         }).then(() => isUpdating = false);
     });
 

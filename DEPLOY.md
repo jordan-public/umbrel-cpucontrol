@@ -19,15 +19,15 @@ To build and publish a new version of the Umbrel CPU Control app to Docker Hub, 
 3. **Build and push the image**:
    Run the following command from the repository root:
    ```bash
-   cd apps/cpucontrol
-   docker buildx build --platform linux/amd64,linux/arm64 -t jordanst/cpucontrol:1.0.0 -t jordanst/cpucontrol:latest --push .
+   cd jordan-cpucontrol
+   docker buildx build --platform linux/amd64,linux/arm64 -t jordanst/cpucontrol:1.0.1 -t jordanst/cpucontrol:latest --push .
    ```
-   *(Update the version tag `1.0.0` as necessary when releasing new versions.)*
+   *(Update the version tag `1.0.1` as necessary when releasing new versions.)*
 
 4. **Update `docker-compose.yml`**:
-   Make sure `apps/cpucontrol/docker-compose.yml` uses the correct updated image tag (e.g., `image: jordanst/cpucontrol:1.0.0`).
+   Make sure `jordan-cpucontrol/docker-compose.yml` uses the correct updated image tag (e.g., `image: jordanst/cpucontrol:1.0.1`).
 
 5. **Update App Metadata**:
-   Ensure `apps/cpucontrol/umbrel-app.yml` has the correct updated `version`.
+   Ensure `jordan-cpucontrol/umbrel-app.yml` has the correct updated `version`.
 
 6. **Commit and push** your changes to the community app store repository.

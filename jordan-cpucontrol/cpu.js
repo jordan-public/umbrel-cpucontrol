@@ -38,6 +38,15 @@ async function setTurboBoost(enabled) {
     await safeWrite(NO_TURBO_FILE, noTurbo);
 }
 
+async function checkTurboSupported() {
+    try {
+        await fs.access(NO_TURBO_FILE);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 async function getTemperature() {
     try {
         const dirs = await fs.readdir(THERMAL_DIR);
@@ -94,10 +103,13 @@ async function getCurrentState() {
         turboboost = parseInt(noTurbo, 10) === 0;
     }
     
+    const turboSupported = await checkTurboSupported();
+    
     return {
         temperature: Math.round(temp * 10) / 10,
         throttling,
-        turboboost
+        turboboost,
+        turboSupported
     };
 }
 

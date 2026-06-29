@@ -1,14 +1,62 @@
 const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
+const crypto = require('crypto');
+const os = require('os');
 const cpu = require('./cpu');
 
 const app = express();
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
+
+// Generate a random token on startup. The UI served from '/' will be given this token to bypass API checks.
+const UI_TOKEN = crypto.randomBytes(16).toString('hex');
+
+function getLocalCidr() {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+        for (const iface of interfaces[name]) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                const parts = iface.address.split('.');
+                return `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
+            }
+        }
+    }
+    return '192.168.1.0/24';
+}
+
+let globalState = {
+    throttling: 100,
+    turboboost: true,
+    apiEnabled: false,
+    apiAllowedIp: getLocalCidr()
+};
+
+function ipToLong(ip) {
+    return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0;
+}
+
+function extractIPv4(ip) {
+    if (!ip) return '';
+    const parts = ip.split(','); // in case of multiple IPs in x-forwarded-for
+    let firstIp = parts[0].trim();
+    if (firstIp.includes('::ffff:')) {
+        return firstIp.split('::ffff:')[1];
+    }
+    return firstIp;
+}
+
+function isIpInCidr(ip, cidr) {
+    try {
+        const [range, bits] = cidr.split('/');
+        const mask = ~(2 ** (32 - parseInt(bits, 10)) - 1);
+        return (ipToLong(ip) & mask) === (ipToLong(range) & mask);
+    } catch {
+        return false;
+    }
+}
 
 // Ensure data dir exists
 async function ensureDataDir() {
@@ -27,12 +75,13 @@ async function startup() {
         const state = JSON.parse(data);
         console.log('Restoring saved state on startup:', state);
         
-        if (state.throttling !== undefined) {
-            await cpu.setThrottling(state.throttling);
-        }
-        if (state.turboboost !== undefined) {
-            await cpu.setTurboBoost(state.turboboost);
-        }
+        if (state.throttling !== undefined) globalState.throttling = state.throttling;
+        if (state.turboboost !== undefined) globalState.turboboost = state.turboboost;
+        if (state.apiEnabled !== undefined) globalState.apiEnabled = state.apiEnabled;
+        if (state.apiAllowedIp !== undefined) globalState.apiAllowedIp = state.apiAllowedIp;
+        
+        await cpu.setThrottling(globalState.throttling);
+        await cpu.setTurboBoost(globalState.turboboost);
     } catch (err) {
         if (err.code === 'ENOENT') {
             console.log('No saved state found. Using system defaults.');
@@ -43,40 +92,62 @@ async function startup() {
 }
 
 // Save state to file
-async function saveState(throttling, turboboost) {
-    const state = { throttling, turboboost };
+async function saveState() {
     try {
-        await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
-        console.log('State saved to disk:', state);
+        await fs.writeFile(STATE_FILE, JSON.stringify(globalState, null, 2), 'utf8');
+        console.log('State saved to disk:', globalState);
     } catch (err) {
         console.error('Failed to save state:', err);
     }
 }
+
+// Serve UI with injected token
+app.get('/', async (req, res) => {
+    try {
+        let html = await fs.readFile(path.join(__dirname, 'public', 'index.html'), 'utf8');
+        html = html.replace('__UI_TOKEN__', UI_TOKEN);
+        res.send(html);
+    } catch (err) {
+        res.status(500).send('Error loading UI');
+    }
+});
+
+// Serve static assets (if any)
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+
+// API Access Control Middleware
+app.use('/api', (req, res, next) => {
+    // If request comes from the UI (has the token), allow it unconditionally
+    if (req.headers['x-ui-token'] === UI_TOKEN) {
+        return next();
+    }
+    
+    // Otherwise, check if API is enabled
+    if (!globalState.apiEnabled) {
+        return res.status(403).json({ error: 'API access is disabled. Enable it in the UI.' });
+    }
+    
+    // Check IP
+    const clientIp = extractIPv4(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '');
+    if (!isIpInCidr(clientIp, globalState.apiAllowedIp)) {
+        return res.status(403).json({ error: `IP ${clientIp} not allowed by CIDR ${globalState.apiAllowedIp}` });
+    }
+    
+    next();
+});
 
 // API Endpoints
 app.get('/api/status', async (req, res) => {
     try {
         const state = await cpu.getCurrentState();
         
-        // Let's also read the saved state to ensure we return what the user set,
-        // in case the system file reads failed (like during local testing).
-        let savedState = {};
-        try {
-            const data = await fs.readFile(STATE_FILE, 'utf8');
-            savedState = JSON.parse(data);
-        } catch (e) {
-            // Ignore if missing
-        }
-        
-        // Merge them - sysfs values take precedence if they are successfully read, 
-        // but since we mocked it returning 100/true when failing, let's use saved state as override for local testing if sysfs failed.
-        // Actually, getCurrentState() returns defaults if sysfs is missing. 
-        // We can just rely on getCurrentState(), but we'll inject saved state if we know we're mocking.
-        
         res.json({
             temperature: state.temperature,
-            throttling: savedState.throttling !== undefined ? savedState.throttling : state.throttling,
-            turboboost: savedState.turboboost !== undefined ? savedState.turboboost : state.turboboost
+            turboSupported: state.turboSupported,
+            throttling: globalState.throttling,
+            turboboost: globalState.turboboost,
+            apiEnabled: globalState.apiEnabled,
+            apiAllowedIp: globalState.apiAllowedIp
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -84,21 +155,25 @@ app.get('/api/status', async (req, res) => {
 });
 
 app.post('/api/settings', async (req, res) => {
-    const { throttling, turboboost } = req.body;
+    const { throttling, turboboost, apiEnabled, apiAllowedIp } = req.body;
     
     try {
         if (throttling !== undefined) {
-            await cpu.setThrottling(throttling);
+            globalState.throttling = Math.max(10, Math.min(100, throttling));
+            await cpu.setThrottling(globalState.throttling);
         }
         if (turboboost !== undefined) {
-            await cpu.setTurboBoost(turboboost);
+            globalState.turboboost = !!turboboost;
+            await cpu.setTurboBoost(globalState.turboboost);
+        }
+        if (apiEnabled !== undefined) {
+            globalState.apiEnabled = !!apiEnabled;
+        }
+        if (apiAllowedIp !== undefined) {
+            globalState.apiAllowedIp = apiAllowedIp;
         }
         
-        // Read current state to ensure valid values before saving
-        const safeThrottling = throttling !== undefined ? Math.max(10, Math.min(100, throttling)) : 100;
-        const safeTurboBoost = turboboost !== undefined ? !!turboboost : true;
-        
-        await saveState(safeThrottling, safeTurboBoost);
+        await saveState();
         
         res.json({ success: true });
     } catch (err) {
