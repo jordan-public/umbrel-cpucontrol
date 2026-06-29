@@ -41,19 +41,29 @@ function getBestClientIp(req) {
     const xri = req.headers['x-real-ip'];
     const remote = req.socket.remoteAddress;
     
-    // Prefer proxy headers if they exist, starting with x-forwarded-for
+    // Prefer proxy headers if they exist
     if (xff) {
         const ip = extractIPv4(xff);
-        if (ip && !ip.startsWith('10.') && !ip.startsWith('127.')) return ip;
+        if (ip && !ip.startsWith('10.21.') && !ip.startsWith('127.')) return ip;
     }
     if (xri) {
         const ip = extractIPv4(xri);
-        if (ip && !ip.startsWith('10.') && !ip.startsWith('127.')) return ip;
+        if (ip && !ip.startsWith('10.21.') && !ip.startsWith('127.')) return ip;
     }
     
-    // Fallback to whatever we have
-    const fallback = extractIPv4(xff || xri || remote || '');
-    return fallback;
+    // Fallback
+    return extractIPv4(xff || xri || remote || '');
+}
+
+function getHostIp(req) {
+    let host = req.headers.host || '';
+    if (host.includes(':')) host = host.split(':')[0];
+    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) {
+        if (!host.startsWith('127.') && !host.startsWith('10.21.')) {
+            return host;
+        }
+    }
+    return null;
 }
 
 function isIpInCidr(ip, cidr) {
@@ -121,21 +131,6 @@ async function saveState() {
     }
 }
 
-// Auto-discover CIDR from the first incoming LAN request if set to 'auto'
-app.use((req, res, next) => {
-    if (globalState.apiAllowedIp === 'auto') {
-        const clientIp = getBestClientIp(req);
-        if (clientIp) {
-            const parts = clientIp.split('.');
-            if (parts.length === 4) {
-                globalState.apiAllowedIp = `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
-                saveState(); // Persist the auto-discovered IP block
-            }
-        }
-    }
-    next();
-});
-
 // Serve UI with injected token
 app.get('/', async (req, res) => {
     try {
@@ -162,16 +157,15 @@ app.use('/api', (req, res, next) => {
         return res.status(403).json({ error: 'API access is disabled. Enable it in the UI.' });
     }
     
-    // If it's still 'auto', we haven't discovered a network yet. Deny to be safe.
-    if (globalState.apiAllowedIp === 'auto') {
-        return res.status(403).json({ error: 'API IP block not yet configured. Please access the UI first.' });
+    // Allow 0.0.0.0/0 as a catch-all bypass
+    if (globalState.apiAllowedIp === '0.0.0.0/0') {
+        return next();
     }
-    
+
     // Check IP
     const clientIp = getBestClientIp(req);
-    // Allow 0.0.0.0/0 as a catch-all
-    if (globalState.apiAllowedIp !== '0.0.0.0/0' && !isIpInCidr(clientIp, globalState.apiAllowedIp)) {
-        return res.status(403).json({ error: `IP ${clientIp} not allowed by CIDR ${globalState.apiAllowedIp}` });
+    if (!isIpInCidr(clientIp, globalState.apiAllowedIp)) {
+        return res.status(403).json({ error: `Access denied. Your IP (${clientIp}) is not within the allowed CIDR block (${globalState.apiAllowedIp}).` });
     }
     
     next();

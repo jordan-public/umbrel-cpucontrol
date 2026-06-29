@@ -375,11 +375,28 @@
 
     function copyCode(id) {
         const text = document.getElementById(id).innerText;
-        navigator.clipboard.writeText(text).then(() => {
-            alert("Copied to clipboard!");
-        }).catch(err => {
-            console.error('Failed to copy text: ', err);
-        });
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert("Copied to clipboard!");
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+            });
+        } else {
+            // Fallback for non-HTTPS (like local Umbrel IPs)
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-999999px";
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                alert("Copied to clipboard!");
+            } catch (err) {
+                console.error('Fallback copy failed', err);
+            }
+            document.body.removeChild(textArea);
+        }
     }
 
     function tryGet() {
@@ -489,6 +506,11 @@
                     apiAllowedIp: data.apiAllowedIp,
                     tempUnit: data.tempUnit || 'C'
                 };
+
+                // Auto-resolve initial 'auto' state instantly
+                if (currentSettings.apiAllowedIp === 'auto') {
+                    btnLocal.click();
+                }
             }
         } catch (err) {
             console.error('Failed to fetch status:', err);
@@ -564,13 +586,24 @@
 
     btnLocal.addEventListener('click', () => {
         isUpdating = true;
-        apiIp.value = 'Detecting LAN IP...';
+        
+        let hostname = window.location.hostname;
+        let newCidr = '192.168.1.0/24';
+        
+        if (/^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) {
+            const parts = hostname.split('.');
+            newCidr = `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
+        } else {
+            alert("Warning: You are connected via " + hostname + " so we cannot fully auto-detect your IP subnet. Defaulting to 192.168.1.0/24.");
+        }
+
+        apiIp.value = newCidr;
         saveSettings({
             ...currentSettings,
-            apiAllowedIp: 'auto'
+            apiAllowedIp: newCidr
         }).then(() => {
             isUpdating = false;
-            fetchStatus(); // Immediately re-fetch to resolve 'auto' to the real IP
+            fetchStatus();
         });
     });
 
