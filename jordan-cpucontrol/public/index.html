@@ -274,6 +274,19 @@
     </div> <!-- end tab-main -->
 
     <div id="tab-advanced" class="tab-content">
+        <div class="control-group">
+            <div class="control-header">
+                <span class="control-label">API Access</span>
+                <label class="switch">
+                    <input type="checkbox" id="apiToggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="temp-label" style="text-transform: none; margin-top: 10px; color: var(--text-muted);">
+                Enable programmatic access to the CPU Control API over your local network.
+            </div>
+        </div>
+
         <h2 style="font-size: 18px; margin-top: 0;">API Examples</h2>
         
         <div class="example-block">
@@ -306,6 +319,8 @@
 </div>
 
 <script>
+    const UI_TOKEN = '__UI_TOKEN__';
+
     const tempDisplay = document.getElementById('tempDisplay');
     const loadDisplay = document.getElementById('loadDisplay');
     const btnC = document.getElementById('btnC');
@@ -315,11 +330,14 @@
     const turboWarning = document.getElementById('turboWarning');
     const throttleSlider = document.getElementById('throttleSlider');
     const throttleValue = document.getElementById('throttleValue');
+    
+    const apiToggle = document.getElementById('apiToggle');
     const app = document.getElementById('app');
 
     let currentSettings = {
         turboboost: true,
         throttling: 100,
+        apiEnabled: false,
         tempUnit: 'C'
     };
 
@@ -366,7 +384,7 @@
     }
 
     function tryGet() {
-        window.open(`${apiBaseUrl}/api/status`, '_blank');
+        window.open(`${apiBaseUrl}/api/status?uiToken=${encodeURIComponent(UI_TOKEN)}`, '_blank');
     }
 
     function setUnit(unit) {
@@ -410,7 +428,9 @@
     }
 
     async function fetchStatusData() {
-        const res = await fetch('/api/status');
+        const res = await fetch('/api/status', {
+            headers: { 'X-UI-Token': UI_TOKEN }
+        });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `Status request failed: ${res.status}`);
         if (data.error) throw new Error(data.error);
@@ -448,12 +468,18 @@
                     throttleSlider.value = data.throttling;
                     throttleValue.innerText = data.throttling + '%';
                 }
+                
+                if (document.activeElement !== apiToggle) {
+                    apiToggle.checked = data.apiEnabled;
+                }
+
                 btnC.classList.toggle('active', data.tempUnit !== 'F');
                 btnF.classList.toggle('active', data.tempUnit === 'F');
 
                 currentSettings = {
                     turboboost: data.turboboost,
                     throttling: data.throttling,
+                    apiEnabled: data.apiEnabled,
                     tempUnit: data.tempUnit || 'C'
                 };
             }
@@ -468,7 +494,8 @@
             const res = await fetch('/api/settings', {
                 method: 'POST',
                 headers: { 
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-UI-Token': UI_TOKEN
                 },
                 body: JSON.stringify(settings)
             });
@@ -503,6 +530,14 @@
         saveSettings({
             ...currentSettings,
             throttling: parseInt(e.target.value, 10)
+        }).finally(() => isUpdating = false).catch(() => {});
+    });
+
+    apiToggle.addEventListener('change', (e) => {
+        isUpdating = true;
+        saveSettings({
+            ...currentSettings,
+            apiEnabled: e.target.checked
         }).finally(() => isUpdating = false).catch(() => {});
     });
 

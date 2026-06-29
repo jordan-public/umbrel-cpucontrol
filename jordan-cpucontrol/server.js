@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
+const crypto = require('crypto');
 const cpu = require('./cpu');
 const pkg = require('./package.json');
 
@@ -10,9 +11,13 @@ app.use(express.json());
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
 
+// Generate a random token on startup. The UI served from '/' will be given this token to bypass API checks.
+const UI_TOKEN = crypto.randomBytes(16).toString('hex');
+
 let globalState = {
     throttling: 100,
     turboboost: true,
+    apiEnabled: false,
     tempUnit: 'C'
 };
 
@@ -35,6 +40,7 @@ async function startup() {
         
         if (state.throttling !== undefined) globalState.throttling = state.throttling;
         if (state.turboboost !== undefined) globalState.turboboost = state.turboboost;
+        if (state.apiEnabled !== undefined) globalState.apiEnabled = state.apiEnabled;
         if (state.tempUnit !== undefined) globalState.tempUnit = state.tempUnit;
         
         await cpu.setThrottling(globalState.throttling);
@@ -69,10 +75,11 @@ async function saveState() {
     }
 }
 
-// Serve UI
+// Serve UI with injected token
 app.get('/', async (req, res) => {
     try {
-        const html = await fs.readFile(path.join(__dirname, 'public', 'index.html'), 'utf8');
+        let html = await fs.readFile(path.join(__dirname, 'public', 'index.html'), 'utf8');
+        html = html.replace('__UI_TOKEN__', UI_TOKEN);
         res.send(html);
     } catch (err) {
         res.status(500).send('Error loading UI');
@@ -81,6 +88,23 @@ app.get('/', async (req, res) => {
 
 // Serve static assets (if any)
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+
+// API Access Control Middleware
+app.use('/api', (req, res, next) => {
+    const queryUiToken = typeof req.query.uiToken === 'string' ? req.query.uiToken : '';
+
+    // If request comes from the UI (has the token), allow it unconditionally
+    if (req.headers['x-ui-token'] === UI_TOKEN || queryUiToken === UI_TOKEN) {
+        return next();
+    }
+
+    // Otherwise, check if API is enabled
+    if (!globalState.apiEnabled) {
+        return res.status(403).json({ error: 'API access is disabled. Enable it in the UI.' });
+    }
+
+    next();
+});
 
 // API Endpoints
 app.get('/api/status', async (req, res) => {
@@ -94,6 +118,7 @@ app.get('/api/status', async (req, res) => {
             turboSupported: state.turboSupported,
             throttling: globalState.throttling,
             turboboost: globalState.turboboost,
+            apiEnabled: globalState.apiEnabled,
             tempUnit: globalState.tempUnit
         });
     } catch (err) {
@@ -102,7 +127,7 @@ app.get('/api/status', async (req, res) => {
 });
 
 app.post('/api/settings', async (req, res) => {
-    const { throttling, turboboost, tempUnit } = req.body;
+    const { throttling, turboboost, apiEnabled, tempUnit } = req.body;
     
     try {
         if (throttling !== undefined) {
@@ -112,6 +137,9 @@ app.post('/api/settings', async (req, res) => {
         if (turboboost !== undefined) {
             globalState.turboboost = !!turboboost;
             await cpu.setTurboBoost(globalState.turboboost);
+        }
+        if (apiEnabled !== undefined) {
+            globalState.apiEnabled = !!apiEnabled;
         }
         if (tempUnit !== undefined) {
             globalState.tempUnit = tempUnit;
