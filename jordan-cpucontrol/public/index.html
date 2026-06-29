@@ -403,7 +403,7 @@
     }
 
     function tryGet() {
-        window.open(`${apiBaseUrl}/api/status`, '_blank');
+        window.open(`${apiBaseUrl}/api/status?uiToken=${encodeURIComponent(UI_TOKEN)}`, '_blank');
     }
 
     function setUnit(unit) {
@@ -458,17 +458,18 @@
         return `${ip}/32`;
     }
 
+    async function fetchStatusData() {
+        const res = await fetch('/api/status', {
+            headers: { 'X-UI-Token': UI_TOKEN }
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        return data;
+    }
+
     async function fetchStatus() {
         try {
-            const res = await fetch('/api/status', {
-                headers: { 'X-UI-Token': UI_TOKEN }
-            });
-            const data = await res.json();
-            
-            if (data.error) {
-                console.error('API Error:', data.error);
-                return;
-            }
+            const data = await fetchStatusData();
             
             currentStatusData = data;
             if (data.version) {
@@ -618,7 +619,7 @@
         btnLocal.disabled = true;
 
         try {
-            const data = statusData || currentStatusData;
+            const data = statusData || await fetchStatusData();
             if (!data || !isIPv4(data.clientIp)) return;
 
             const cidr = requesterCidrFromIp(data.clientIp);
@@ -637,7 +638,7 @@
     }
 
     btnLocal.addEventListener('click', () => {
-        detectBrowserSubnet(currentStatusData);
+        detectBrowserSubnet();
     });
 
     // Initial fetch and polling

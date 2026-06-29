@@ -86,20 +86,37 @@ function getClientIpInfo(req) {
 
     if (forwarded) {
         const ip = getForwardedHeaderIp(forwarded);
-        if (ip) return { ip, source: 'forwarded' };
+        if (ip) return { ip, source: 'forwarded', raw: String(forwarded) };
     }
 
     if (xff) {
         const ip = extractIPv4(xff);
-        if (ip) return { ip, source: 'x-forwarded-for' };
+        if (ip) return { ip, source: 'x-forwarded-for', raw: String(xff) };
     }
 
     if (xri) {
         const ip = extractIPv4(xri);
-        if (ip) return { ip, source: 'x-real-ip' };
+        if (ip) return { ip, source: 'x-real-ip', raw: String(xri) };
     }
 
-    return { ip: normalizeIPv4(remote), source: 'socket' };
+    return { ip: normalizeIPv4(remote), source: 'socket', raw: remote || '' };
+}
+
+function getRequestIpDebug(req, clientInfo) {
+    return {
+        selectedSource: clientInfo.source,
+        selectedRaw: clientInfo.raw || '',
+        socketRemoteAddress: req.socket.remoteAddress || '',
+        socketRemoteFamily: req.socket.remoteFamily || '',
+        socketRemotePort: req.socket.remotePort || null,
+        socketLocalAddress: req.socket.localAddress || '',
+        socketLocalPort: req.socket.localPort || null,
+        expressIp: req.ip || '',
+        expressIps: Array.isArray(req.ips) ? req.ips : [],
+        forwarded: req.headers.forwarded || '',
+        xForwardedFor: req.headers['x-forwarded-for'] || '',
+        xRealIp: req.headers['x-real-ip'] || ''
+    };
 }
 
 function isConfiguredCidr(cidr) {
@@ -181,8 +198,10 @@ app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // API Access Control Middleware
 app.use('/api', (req, res, next) => {
+    const queryUiToken = typeof req.query.uiToken === 'string' ? req.query.uiToken : '';
+
     // If request comes from the UI (has the token), allow it unconditionally
-    if (req.headers['x-ui-token'] === UI_TOKEN) {
+    if (req.headers['x-ui-token'] === UI_TOKEN || queryUiToken === UI_TOKEN) {
         return next();
     }
     
@@ -220,6 +239,8 @@ app.get('/api/status', async (req, res) => {
             version: pkg.version,
             clientIp: clientInfo.ip,
             clientIpSource: clientInfo.source,
+            clientIpRaw: clientInfo.raw || '',
+            requestIpDebug: getRequestIpDebug(req, clientInfo),
             temperature: state.temperature,
             load: state.load,
             turboSupported: state.turboSupported,
