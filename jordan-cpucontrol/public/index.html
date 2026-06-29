@@ -454,14 +454,7 @@
         });
     }
 
-    function classfulCidrFromIp(ip) {
-        const parts = ip.split('.');
-        const first = Number(parts[0]);
-
-        if (first <= 127) return `${parts[0]}.0.0.0/8`;
-        if (first <= 191) return `${parts[0]}.${parts[1]}.0.0/16`;
-        if (first <= 223) return `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
-
+    function requesterCidrFromIp(ip) {
         return `${ip}/32`;
     }
 
@@ -520,7 +513,7 @@
                 }
 
                 if (document.activeElement !== apiIp) {
-                    apiIp.value = data.apiAllowedIp === 'auto' ? "Detecting browser's subnet..." : (data.apiAllowedIp || '');
+                    apiIp.value = data.apiEnabled ? (data.apiAllowedIp === 'auto' ? '' : (data.apiAllowedIp || '')) : '';
                 }
                 
                 btnC.classList.toggle('active', data.tempUnit !== 'F');
@@ -534,8 +527,8 @@
                     tempUnit: data.tempUnit || 'C'
                 };
 
-                // Auto-resolve initial 'auto' state once from the browser/request IP reported by the server.
-                if (currentSettings.apiAllowedIp === 'auto' && !browserSubnetAttempted) {
+                // Auto-resolve initial 'auto' state once when API access is enabled.
+                if (currentSettings.apiEnabled && currentSettings.apiAllowedIp === 'auto' && !browserSubnetAttempted) {
                     detectBrowserSubnet(data);
                 }
             }
@@ -587,20 +580,28 @@
     apiToggle.addEventListener('change', (e) => {
         isUpdating = true;
         const enabled = e.target.checked;
+        const nextSettings = {
+            ...currentSettings,
+            apiEnabled: enabled
+        };
+
         if (enabled) {
             apiIp.disabled = false;
             btnLocal.disabled = false;
             ipBlockGroup.style.opacity = '1';
+
+            if (!apiIp.value.trim() && currentStatusData && isIPv4(currentStatusData.clientIp)) {
+                nextSettings.apiAllowedIp = requesterCidrFromIp(currentStatusData.clientIp);
+                apiIp.value = nextSettings.apiAllowedIp;
+            }
         } else {
             apiIp.disabled = true;
             btnLocal.disabled = true;
             ipBlockGroup.style.opacity = '0.5';
+            apiIp.value = '';
         }
         
-        saveSettings({
-            ...currentSettings,
-            apiEnabled: enabled
-        }).then(() => isUpdating = false);
+        saveSettings(nextSettings).then(() => isUpdating = false);
     });
 
     apiIp.addEventListener('change', (e) => {
@@ -620,7 +621,7 @@
             const data = statusData || currentStatusData;
             if (!data || !isIPv4(data.clientIp)) return;
 
-            const cidr = classfulCidrFromIp(data.clientIp);
+            const cidr = requesterCidrFromIp(data.clientIp);
             apiIp.value = cidr;
             await saveSettings({
                 ...currentSettings,
