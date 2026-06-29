@@ -3,11 +3,15 @@ const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
 const os = require('os');
+const dns = require('dns').promises;
+const { execFile } = require('child_process');
+const { promisify } = require('util');
 const cpu = require('./cpu');
 const pkg = require('./package.json');
 
 const app = express();
 app.use(express.json());
+const execFileAsync = promisify(execFile);
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
@@ -27,53 +31,223 @@ function ipToLong(ip) {
     return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0;
 }
 
+function isValidIPv4(ip) {
+    if (!ip || !/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) return false;
+    return ip.split('.').every(octet => {
+        const value = Number(octet);
+        return Number.isInteger(value) && value >= 0 && value <= 255;
+    });
+}
+
+function normalizeIPv4(value) {
+    if (!value) return '';
+    let ip = String(value).trim().replace(/^"|"$/g, '');
+
+    if (ip.includes('::ffff:')) {
+        ip = ip.split('::ffff:')[1];
+    }
+
+    if (/^(\d{1,3}\.){3}\d{1,3}:\d+$/.test(ip)) {
+        ip = ip.slice(0, ip.lastIndexOf(':'));
+    }
+
+    const match = ip.match(/(\d{1,3}\.){3}\d{1,3}/);
+    return match && isValidIPv4(match[0]) ? match[0] : '';
+}
+
 function extractIPv4(ip) {
     if (!ip) return '';
-    const parts = ip.split(','); // in case of multiple IPs in x-forwarded-for
-    let firstIp = parts[0].trim();
-    if (firstIp.includes('::ffff:')) {
-        return firstIp.split('::ffff:')[1];
-    }
-    return firstIp;
+    const parts = String(ip).split(','); // in case of multiple IPs in x-forwarded-for
+    return normalizeIPv4(parts[0]);
 }
 
-function getBestClientIp(req) {
-    const xff = req.headers['x-forwarded-for'];
-    const xri = req.headers['x-real-ip'];
-    const remote = req.socket.remoteAddress;
-    
-    // Prefer proxy headers if they exist
-    if (xff) {
-        const ip = extractIPv4(xff);
-        if (ip && !ip.startsWith('10.21.') && !ip.startsWith('127.')) return ip;
-    }
-    if (xri) {
-        const ip = extractIPv4(xri);
-        if (ip && !ip.startsWith('10.21.') && !ip.startsWith('127.')) return ip;
-    }
-    
-    // Fallback
-    return extractIPv4(xff || xri || remote || '');
-}
+function getContainerNetworks() {
+    const networks = [];
+    const interfaces = os.networkInterfaces();
 
-function getHostIp(req) {
-    let host = req.headers.host || '';
-    if (host.includes(':')) host = host.split(':')[0];
-    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) {
-        if (!host.startsWith('127.') && !host.startsWith('10.21.')) {
-            return host;
+    for (const entries of Object.values(interfaces)) {
+        for (const entry of entries || []) {
+            if (entry.family !== 'IPv4' || entry.internal) continue;
+            if (!isValidIPv4(entry.address) || !isValidIPv4(entry.netmask)) continue;
+
+            const maskLong = ipToLong(entry.netmask);
+            const prefix = maskLong.toString(2).split('1').length - 1;
+            const networkLong = ipToLong(entry.address) & maskLong;
+            const network = [
+                (networkLong >>> 24) & 255,
+                (networkLong >>> 16) & 255,
+                (networkLong >>> 8) & 255,
+                networkLong & 255
+            ].join('.');
+
+            networks.push({
+                address: entry.address,
+                cidr: `${network}/${prefix}`
+            });
         }
     }
-    return null;
+
+    return networks;
 }
 
 function isIpInCidr(ip, cidr) {
     try {
-        const [range, bits] = cidr.split('/');
-        const mask = ~(2 ** (32 - parseInt(bits, 10)) - 1);
+        if (!isValidIPv4(ip) || typeof cidr !== 'string' || !cidr.includes('/')) return false;
+        const [range, bitsValue] = cidr.split('/');
+        const bits = parseInt(bitsValue, 10);
+        if (!isValidIPv4(range) || Number.isNaN(bits) || bits < 0 || bits > 32) return false;
+        const mask = bits === 0 ? 0 : (0xFFFFFFFF << (32 - bits)) >>> 0;
         return (ipToLong(ip) & mask) === (ipToLong(range) & mask);
     } catch {
         return false;
+    }
+}
+
+function isContainerNetworkIp(ip) {
+    if (!isValidIPv4(ip)) return false;
+    return getContainerNetworks().some(network => isIpInCidr(ip, network.cidr));
+}
+
+function getForwardedHeaderIp(headerValue) {
+    if (!headerValue) return '';
+    const firstForwarded = String(headerValue).split(',')[0];
+    const parts = firstForwarded.split(';').map(part => part.trim());
+    const forPart = parts.find(part => part.toLowerCase().startsWith('for='));
+    if (!forPart) return '';
+    return normalizeIPv4(forPart.slice(4));
+}
+
+function getClientIpInfo(req) {
+    const xff = req.headers['x-forwarded-for'];
+    const xri = req.headers['x-real-ip'];
+    const forwarded = req.headers.forwarded;
+    const remote = req.socket.remoteAddress;
+
+    if (forwarded) {
+        const ip = getForwardedHeaderIp(forwarded);
+        if (ip) return { ip, source: 'forwarded' };
+    }
+
+    if (xff) {
+        const ip = extractIPv4(xff);
+        if (ip) return { ip, source: 'x-forwarded-for' };
+    }
+
+    if (xri) {
+        const ip = extractIPv4(xri);
+        if (ip) return { ip, source: 'x-real-ip' };
+    }
+
+    return { ip: normalizeIPv4(remote), source: 'socket' };
+}
+
+function isLoopbackIp(ip) {
+    return ip.startsWith('127.');
+}
+
+function isLinkLocalIp(ip) {
+    return ip.startsWith('169.254.');
+}
+
+function isUsableUmbrelLocalIp(ip) {
+    if (!isValidIPv4(ip)) return false;
+    if (ip === '0.0.0.0' || isLoopbackIp(ip) || isLinkLocalIp(ip)) return false;
+    if (isContainerNetworkIp(ip)) return false;
+    return true;
+}
+
+function cidrFromIPv4(ip) {
+    const parts = ip.split('.');
+    return `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
+}
+
+async function resolveHostIPv4(hostname) {
+    try {
+        const addresses = await dns.lookup(hostname, { family: 4, all: true });
+        return addresses.map(entry => entry.address).filter(isValidIPv4);
+    } catch {
+        return [];
+    }
+}
+
+async function getRouteSourceIp() {
+    try {
+        const { stdout } = await execFileAsync('ip', ['route', 'get', '1.1.1.1'], { timeout: 1500 });
+        const match = stdout.match(/\bsrc\s+((?:\d{1,3}\.){3}\d{1,3})\b/);
+        return match ? normalizeIPv4(match[1]) : '';
+    } catch {
+        return '';
+    }
+}
+
+async function detectUmbrelLocalCidr() {
+    const candidates = [];
+    const envNames = [
+        'UMBREL_HOST_IP',
+        'UMBREL_LOCAL_IP',
+        'UMBREL_IP',
+        'HOST_IP',
+        'LOCAL_IP'
+    ];
+
+    for (const name of envNames) {
+        candidates.push({ ip: normalizeIPv4(process.env[name]), source: `env:${name}` });
+    }
+
+    for (const hostname of ['umbrel.local', 'umbrel', 'host.docker.internal']) {
+        const addresses = await resolveHostIPv4(hostname);
+        for (const address of addresses) {
+            candidates.push({ ip: address, source: `dns:${hostname}` });
+        }
+    }
+
+    for (const network of getContainerNetworks()) {
+        candidates.push({ ip: network.address, source: 'container-interface' });
+    }
+
+    candidates.push({ ip: await getRouteSourceIp(), source: 'route-src' });
+
+    const chosen = candidates.find(candidate => isUsableUmbrelLocalIp(candidate.ip));
+    if (chosen) {
+        return {
+            cidr: cidrFromIPv4(chosen.ip),
+            ip: chosen.ip,
+            source: chosen.source
+        };
+    }
+
+    return {
+        error: 'Could not detect Umbrel LAN subnet from host/DNS/route data. The container only exposed Docker network addresses.',
+        rejectedCandidates: candidates
+            .filter(candidate => candidate.ip)
+            .map(candidate => `${candidate.source}:${candidate.ip}`)
+    };
+}
+
+function canCheckClientAgainstConfiguredCidr(clientInfo) {
+    if (clientInfo.source !== 'socket') return true;
+    if (!isContainerNetworkIp(clientInfo.ip)) return true;
+    return false;
+}
+
+function isConfiguredCidr(cidr) {
+    if (cidr === '0.0.0.0/0') return true;
+    if (typeof cidr !== 'string' || !cidr.includes('/')) return false;
+    const [range, bits] = cidr.split('/');
+    const prefix = parseInt(bits, 10);
+    return isValidIPv4(range) && Number.isInteger(prefix) && prefix >= 0 && prefix <= 32;
+}
+
+async function ensureAutoAllowedIpResolved() {
+    if (globalState.apiAllowedIp !== 'auto') return;
+
+    const detection = await detectUmbrelLocalCidr();
+    if (detection.cidr) {
+        globalState.apiAllowedIp = detection.cidr;
+        await saveState();
+        console.log(`Auto-detected Umbrel local CIDR: ${detection.cidr} (${detection.source})`);
+    } else {
+        console.warn(detection.error, detection.rejectedCandidates || []);
     }
 }
 
@@ -99,6 +273,8 @@ async function startup() {
         if (state.apiEnabled !== undefined) globalState.apiEnabled = state.apiEnabled;
         if (state.apiAllowedIp !== undefined) globalState.apiAllowedIp = state.apiAllowedIp;
         if (state.tempUnit !== undefined) globalState.tempUnit = state.tempUnit;
+
+        await ensureAutoAllowedIpResolved();
         
         await cpu.setThrottling(globalState.throttling);
         await cpu.setTurboBoost(globalState.turboboost);
@@ -113,6 +289,7 @@ async function startup() {
                 } else {
                     globalState.turboboost = false;
                 }
+                await ensureAutoAllowedIpResolved();
             } catch (e) {
                 console.error('Failed to discover system state:', e);
             }
@@ -164,7 +341,19 @@ app.use('/api', (req, res, next) => {
     }
 
     // Check IP
-    const clientIp = getBestClientIp(req);
+    const clientInfo = getClientIpInfo(req);
+    const clientIp = clientInfo.ip;
+
+    if (!isConfiguredCidr(globalState.apiAllowedIp) || globalState.apiAllowedIp === 'auto') {
+        return res.status(403).json({ error: 'API access CIDR is not configured. Set it in the Umbrel UI first.' });
+    }
+
+    if (!canCheckClientAgainstConfiguredCidr(clientInfo)) {
+        return res.status(403).json({
+            error: `Access denied. Docker only exposed the bridge peer (${clientIp}) to the app, so the original requester IP cannot be verified. Use a path that forwards the real client IP.`
+        });
+    }
+
     if (!isIpInCidr(clientIp, globalState.apiAllowedIp)) {
         return res.status(403).json({ error: `Access denied. Your IP (${clientIp}) is not within the allowed CIDR block (${globalState.apiAllowedIp}).` });
     }
@@ -176,10 +365,13 @@ app.use('/api', (req, res, next) => {
 app.get('/api/status', async (req, res) => {
     try {
         const state = await cpu.getCurrentState();
+        const clientInfo = getClientIpInfo(req);
         
         res.json({
             version: pkg.version,
-            clientIp: getBestClientIp(req),
+            clientIp: clientInfo.ip,
+            clientIpSource: clientInfo.source,
+            clientIpVerifiable: canCheckClientAgainstConfiguredCidr(clientInfo),
             temperature: state.temperature,
             load: state.load,
             turboSupported: state.turboSupported,
@@ -189,6 +381,18 @@ app.get('/api/status', async (req, res) => {
             apiAllowedIp: globalState.apiAllowedIp,
             tempUnit: globalState.tempUnit
         });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/umbrel-local-cidr', async (req, res) => {
+    try {
+        const detection = await detectUmbrelLocalCidr();
+        if (detection.cidr) {
+            return res.json(detection);
+        }
+        res.status(404).json(detection);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
