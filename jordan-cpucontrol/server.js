@@ -30,8 +30,8 @@ async function startup() {
         if (state.throttling !== undefined) {
             await cpu.setThrottling(state.throttling);
         }
-        if (state.hyperthreading !== undefined) {
-            await cpu.setHyperthreading(state.hyperthreading);
+        if (state.turboboost !== undefined) {
+            await cpu.setTurboBoost(state.turboboost);
         }
     } catch (err) {
         if (err.code === 'ENOENT') {
@@ -43,8 +43,8 @@ async function startup() {
 }
 
 // Save state to file
-async function saveState(throttling, hyperthreading) {
-    const state = { throttling, hyperthreading };
+async function saveState(throttling, turboboost) {
+    const state = { throttling, turboboost };
     try {
         await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
         console.log('State saved to disk:', state);
@@ -76,7 +76,7 @@ app.get('/api/status', async (req, res) => {
         res.json({
             temperature: state.temperature,
             throttling: savedState.throttling !== undefined ? savedState.throttling : state.throttling,
-            hyperthreading: savedState.hyperthreading !== undefined ? savedState.hyperthreading : state.hyperthreading
+            turboboost: savedState.turboboost !== undefined ? savedState.turboboost : state.turboboost
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -84,21 +84,21 @@ app.get('/api/status', async (req, res) => {
 });
 
 app.post('/api/settings', async (req, res) => {
-    const { throttling, hyperthreading } = req.body;
+    const { throttling, turboboost } = req.body;
     
     try {
         if (throttling !== undefined) {
             await cpu.setThrottling(throttling);
         }
-        if (hyperthreading !== undefined) {
-            await cpu.setHyperthreading(hyperthreading);
+        if (turboboost !== undefined) {
+            await cpu.setTurboBoost(turboboost);
         }
         
         // Read current state to ensure valid values before saving
         const safeThrottling = throttling !== undefined ? Math.max(10, Math.min(100, throttling)) : 100;
-        const safeHyperthreading = hyperthreading !== undefined ? !!hyperthreading : true;
+        const safeTurboBoost = turboboost !== undefined ? !!turboboost : true;
         
-        await saveState(safeThrottling, safeHyperthreading);
+        await saveState(safeThrottling, safeTurboBoost);
         
         res.json({ success: true });
     } catch (err) {

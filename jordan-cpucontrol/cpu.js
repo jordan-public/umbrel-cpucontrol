@@ -30,18 +30,12 @@ async function safeRead(filePath) {
 async function setThrottling(pct) {
     // 10% to 100%
     const val = Math.max(10, Math.min(100, pct));
-    
-    // If throttling < 100, turn off turbo (no_turbo = 1)
-    // If throttling == 100, turn on turbo (no_turbo = 0)
-    const noTurbo = val < 100 ? 1 : 0;
-    
-    await safeWrite(NO_TURBO_FILE, noTurbo);
     await safeWrite(MAX_PERF_FILE, val);
 }
 
-async function setHyperthreading(enabled) {
-    const val = enabled ? 'on' : 'off';
-    await safeWrite(SMT_CONTROL_FILE, val);
+async function setTurboBoost(enabled) {
+    const noTurbo = enabled ? 0 : 1;
+    await safeWrite(NO_TURBO_FILE, noTurbo);
 }
 
 async function getTemperature() {
@@ -95,21 +89,21 @@ async function getCurrentState() {
         throttling = parseInt(maxPerf, 10);
     }
     
-    let hyperthreading = true;
-    if (smtControl !== null) {
-        hyperthreading = smtControl === 'on';
+    let turboboost = true;
+    if (noTurbo !== null) {
+        turboboost = parseInt(noTurbo, 10) === 0;
     }
     
     return {
         temperature: Math.round(temp * 10) / 10,
         throttling,
-        hyperthreading
+        turboboost
     };
 }
 
 module.exports = {
     setThrottling,
-    setHyperthreading,
+    setTurboBoost,
     getTemperature,
     getCurrentState
 };

@@ -173,9 +173,9 @@
 
     <div class="control-group">
         <div class="control-header">
-            <span class="control-label">Hyperthreading (SMT)</span>
+            <span class="control-label">Turbo Boost</span>
             <label class="switch">
-                <input type="checkbox" id="htToggle">
+                <input type="checkbox" id="turboToggle">
                 <span class="slider"></span>
             </label>
         </div>
@@ -192,13 +192,13 @@
 
 <script>
     const tempDisplay = document.getElementById('tempDisplay');
-    const htToggle = document.getElementById('htToggle');
+    const turboToggle = document.getElementById('turboToggle');
     const throttleSlider = document.getElementById('throttleSlider');
     const throttleValue = document.getElementById('throttleValue');
     const app = document.getElementById('app');
 
     let currentSettings = {
-        hyperthreading: true,
+        turboboost: true,
         throttling: 100
     };
 
@@ -225,11 +225,11 @@
 
             // Only update controls if user isn't currently interacting
             if (!isUpdating) {
-                htToggle.checked = data.hyperthreading;
+                turboToggle.checked = data.turboboost;
                 throttleSlider.value = data.throttling;
                 throttleValue.innerText = data.throttling + '%';
                 
-                currentSettings.hyperthreading = data.hyperthreading;
+                currentSettings.turboboost = data.turboboost;
                 currentSettings.throttling = data.throttling;
             }
         } catch (err) {
@@ -254,11 +254,11 @@
     }
 
     // Event Listeners
-    htToggle.addEventListener('change', (e) => {
+    turboToggle.addEventListener('change', (e) => {
         isUpdating = true;
         saveSettings({
             ...currentSettings,
-            hyperthreading: e.target.checked
+            turboboost: e.target.checked
         }).then(() => isUpdating = false);
     });
 
