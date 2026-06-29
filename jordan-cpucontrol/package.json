@@ -1,13 +1,13 @@
 {
   "name": "umbrel-cpucontrol",
   "version": "1.0.0",
-  "description": "An Umbrel app to monitor and control CPU temperature, Turbo Boost, and Throttling, designed for Intel CPUs (e.g., NUC8i7BNH) using `intel_pstate`.",
+  "description": "Protect your Umbrel node from overheating and overloading! Monitor and control CPU temperature, Load, Turbo Boost, and Throttling via UI and API.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
+  "author": "Jordan Stojanovski",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {

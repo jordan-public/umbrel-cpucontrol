@@ -3,10 +3,20 @@ id: jordan-cpucontrol
 category: Utilities
 name: Cpu Control
 version: "1.0.6"
-description: Monitor and control CPU temperature, Turbo Boost, and Throttling on Intel CPUs like the NUC8i7BNH.
+description: >-
+  Protect your Umbrel node from overheating and overloading! This app allows you to monitor and manage your CPU directly. Keep a close eye on hardware health with real-time CPU Temperature and CPU Load metrics. You can actively manage thermal performance by manually toggling Turbo Boost or dialing in a specific CPU Throttling percentage to instantly cool down a machine running too hot.
+
+
+  Additionally, it features a robust, secure built-in API allowing you to easily read these metrics and trigger controls directly from Home Assistant or other local automation platforms.
+
+
+  Source code: https://github.com/jordan-public/umbrel-cpucontrol
+
+
+  DISCLAIMER: Use at your own risk. The developer, Jordan Stojanovski, assumes no responsibility or liability for any hardware damage, system instability, or data loss that may arise from using this software to modify core CPU parameters.
 tagline: Keep your node cool and efficient
 icon: "https://raw.githubusercontent.com/jordan-public/umbrel-cpucontrol/main/jordan-cpucontrol/icon.svg"
-developer: Umbrel Community
+developer: Jordan Stojanovski
 website: "https://github.com/jordan-public/umbrel-cpucontrol"
 dependencies: []
 repo: "https://github.com/jordan-public/umbrel-cpucontrol"
