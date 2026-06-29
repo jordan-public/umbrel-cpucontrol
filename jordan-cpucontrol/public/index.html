@@ -184,6 +184,16 @@
 
     <div class="control-group">
         <div class="control-header">
+            <span class="control-label">Hyperthreading (SMT)</span>
+            <label class="switch">
+                <input type="checkbox" id="htToggle">
+                <span class="slider"></span>
+            </label>
+        </div>
+    </div>
+
+    <div class="control-group">
+        <div class="control-header">
             <span class="control-label">CPU Throttling</span>
             <span class="control-value" id="throttleValue">100%</span>
         </div>
@@ -223,6 +233,7 @@
     const turboToggle = document.getElementById('turboToggle');
     const turboSlider = document.getElementById('turboSlider');
     const turboWarning = document.getElementById('turboWarning');
+    const htToggle = document.getElementById('htToggle');
     const throttleSlider = document.getElementById('throttleSlider');
     const throttleValue = document.getElementById('throttleValue');
     
@@ -233,6 +244,7 @@
 
     let currentSettings = {
         turboboost: true,
+        hyperthreading: true,
         throttling: 100,
         apiEnabled: false,
         apiAllowedIp: '192.168.1.0/24'
@@ -277,6 +289,7 @@
                 if (data.turboSupported) {
                     turboToggle.checked = data.turboboost;
                 }
+                htToggle.checked = data.hyperthreading;
                 throttleSlider.value = data.throttling;
                 throttleValue.innerText = data.throttling + '%';
                 
@@ -293,6 +306,7 @@
                 
                 currentSettings = {
                     turboboost: data.turboboost,
+                    hyperthreading: data.hyperthreading,
                     throttling: data.throttling,
                     apiEnabled: data.apiEnabled,
                     apiAllowedIp: data.apiAllowedIp
@@ -328,6 +342,14 @@
         saveSettings({
             ...currentSettings,
             turboboost: e.target.checked
+        }).then(() => isUpdating = false);
+    });
+
+    htToggle.addEventListener('change', (e) => {
+        isUpdating = true;
+        saveSettings({
+            ...currentSettings,
+            hyperthreading: e.target.checked
         }).then(() => isUpdating = false);
     });
 

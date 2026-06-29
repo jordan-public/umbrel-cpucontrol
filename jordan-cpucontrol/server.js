@@ -30,6 +30,7 @@ function getLocalCidr() {
 let globalState = {
     throttling: 100,
     turboboost: true,
+    hyperthreading: true,
     apiEnabled: false,
     apiAllowedIp: getLocalCidr()
 };
@@ -77,11 +78,13 @@ async function startup() {
         
         if (state.throttling !== undefined) globalState.throttling = state.throttling;
         if (state.turboboost !== undefined) globalState.turboboost = state.turboboost;
+        if (state.hyperthreading !== undefined) globalState.hyperthreading = state.hyperthreading;
         if (state.apiEnabled !== undefined) globalState.apiEnabled = state.apiEnabled;
         if (state.apiAllowedIp !== undefined) globalState.apiAllowedIp = state.apiAllowedIp;
         
         await cpu.setThrottling(globalState.throttling);
         await cpu.setTurboBoost(globalState.turboboost);
+        await cpu.setHyperthreading(globalState.hyperthreading);
     } catch (err) {
         if (err.code === 'ENOENT') {
             console.log('No saved state found. Using system defaults.');
@@ -146,6 +149,7 @@ app.get('/api/status', async (req, res) => {
             turboSupported: state.turboSupported,
             throttling: globalState.throttling,
             turboboost: globalState.turboboost,
+            hyperthreading: globalState.hyperthreading,
             apiEnabled: globalState.apiEnabled,
             apiAllowedIp: globalState.apiAllowedIp
         });
@@ -155,7 +159,7 @@ app.get('/api/status', async (req, res) => {
 });
 
 app.post('/api/settings', async (req, res) => {
-    const { throttling, turboboost, apiEnabled, apiAllowedIp } = req.body;
+    const { throttling, turboboost, hyperthreading, apiEnabled, apiAllowedIp } = req.body;
     
     try {
         if (throttling !== undefined) {
@@ -165,6 +169,10 @@ app.post('/api/settings', async (req, res) => {
         if (turboboost !== undefined) {
             globalState.turboboost = !!turboboost;
             await cpu.setTurboBoost(globalState.turboboost);
+        }
+        if (hyperthreading !== undefined) {
+            globalState.hyperthreading = !!hyperthreading;
+            await cpu.setHyperthreading(globalState.hyperthreading);
         }
         if (apiEnabled !== undefined) {
             globalState.apiEnabled = !!apiEnabled;

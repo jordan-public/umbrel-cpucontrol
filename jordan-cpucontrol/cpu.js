@@ -38,6 +38,11 @@ async function setTurboBoost(enabled) {
     await safeWrite(NO_TURBO_FILE, noTurbo);
 }
 
+async function setHyperthreading(enabled) {
+    const val = enabled ? 'on' : 'off';
+    await safeWrite(SMT_CONTROL_FILE, val);
+}
+
 async function checkTurboSupported() {
     try {
         await fs.access(NO_TURBO_FILE);
@@ -102,6 +107,11 @@ async function getCurrentState() {
     if (noTurbo !== null) {
         turboboost = parseInt(noTurbo, 10) === 0;
     }
+
+    let hyperthreading = true;
+    if (smtControl !== null) {
+        hyperthreading = smtControl === 'on';
+    }
     
     const turboSupported = await checkTurboSupported();
     
@@ -109,6 +119,7 @@ async function getCurrentState() {
         temperature: Math.round(temp * 10) / 10,
         throttling,
         turboboost,
+        hyperthreading,
         turboSupported
     };
 }
@@ -116,6 +127,7 @@ async function getCurrentState() {
 module.exports = {
     setThrottling,
     setTurboBoost,
+    setHyperthreading,
     getTemperature,
     getCurrentState
 };
