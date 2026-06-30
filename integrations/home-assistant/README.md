@@ -5,9 +5,17 @@ Because the Umbrel CPU Control app exposes standard HTTP REST endpoints, integra
 There are two ways to add this to your Home Assistant instance:
 
 ## Option 1: Copy and Paste (Easiest)
-Copy the YAML configuration below and paste it directly into your `configuration.yaml` file (you can do this via the File Editor or Studio Code Server add-ons).
+Copy the YAML configuration below and paste it directly into your `configuration.yaml` file.
 
-**IMPORTANT:** Before saving, make sure to replace `umbrel.local` with your Umbrel's actual IP address if your Home Assistant cannot resolve `.local` domains.
+**For Umbrel Home Assistant Users:**
+Because Umbrel runs the "Container" edition of Home Assistant, you don't have access to the Supervisor Add-on Store for the File Editor. Instead:
+1. Install the native **"File Browser"** app directly from the Umbrel App Store.
+2. Open File Browser and navigate to `app-data/home-assistant/data/`.
+3. Open `configuration.yaml` and paste the code block below.
+4. **Networking Note:** Docker containers on Umbrel often fail to resolve `.local` domains. You **must** replace `umbrel.local` in the YAML below with either your Umbrel's static local IP (e.g., `192.168.1.50`) or the internal Docker gateway IP (typically `10.21.21.1`).
+
+**For Standard Home Assistant Users:**
+You can paste this using the File Editor or Studio Code Server add-ons. Before saving, ensure `umbrel.local` resolves correctly, or replace it with your Umbrel's IP address.
 
 ```yaml
 # Home Assistant Configuration for Umbrel CPU Control
