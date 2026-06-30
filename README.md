@@ -13,6 +13,9 @@ Source code: https://github.com/jordan-public/umbrel-cpucontrol
 - **Persistent State:** The app saves your configuration and automatically restores it upon startup.
 - **API Access:** Exposes HTTP endpoints for reading and writing CPU parameters programmatically.
 
+## Home Assistant Integration
+Want to add these controls to your smart home dashboard? Check out the **[Home Assistant Integration Guide](integrations/home-assistant/README.md)** for a complete, ready-to-use copy & paste YAML configuration!
+
 ## API Endpoints
 
 ### `GET /api/status`
