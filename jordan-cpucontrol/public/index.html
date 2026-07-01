@@ -734,9 +734,13 @@
                 ? `${baseDisplayName} ${String(zone.id || '').replace('thermal_zone', '')}`
                 : baseDisplayName;
 
+            let tempP = (zone.temperature - 50) / (100 - 50);
+            tempP = Math.max(0, Math.min(1, tempP));
+            const color = interpolateColor(tempP);
+
             return `
             <div class="sensor-chip has-tooltip" data-tooltip="Raw sensor: ${escapeHtml(rawName)}">
-                <div class="sensor-value">${formatTemp(zone.temperature, unit)}</div>
+                <div class="sensor-value" style="color: ${color}; transition: color 0.3s;">${formatTemp(zone.temperature, unit)}</div>
                 <div class="temp-label">${escapeHtml(displayName)}</div>
             </div>`;
         }).join('');
