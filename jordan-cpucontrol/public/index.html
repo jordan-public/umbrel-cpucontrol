@@ -63,6 +63,42 @@
             margin-top: 5px;
         }
 
+        .stat-grid {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 120px;
+        }
+
+        .sensor-list {
+            display: none;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
+            margin-top: -10px;
+            margin-bottom: 20px;
+        }
+
+        .sensor-chip {
+            background-color: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .sensor-value {
+            color: var(--primary);
+            font-weight: bold;
+            font-size: 18px;
+        }
+
         .control-group {
             margin-bottom: 25px;
         }
@@ -83,6 +119,26 @@
             font-size: 14px;
             color: var(--primary);
             font-weight: bold;
+        }
+
+        .profile-buttons {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .profile-btn {
+            background: #333;
+            color: white;
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .profile-btn:hover {
+            background: #444;
         }
 
         /* Slider */
@@ -233,12 +289,12 @@
 
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('main')">Main</button>
-        <button class="tab-btn" onclick="switchTab('advanced')">Advanced</button>
+        <button class="tab-btn" onclick="switchTab('api')">API</button>
     </div>
 
     <div id="tab-main" class="tab-content active">
-        <div class="stat-card" style="display: flex; justify-content: space-around; align-items: center;">
-            <div style="display: flex; flex-direction: column; align-items: center;">
+        <div class="stat-card stat-grid">
+            <div class="stat-item">
                 <div style="display: flex; align-items: center; justify-content: center;">
                     <div class="temp-display" id="tempDisplay">--</div>
                     <div class="unit-toggle" style="display: flex; align-items: center; margin-left: 10px;">
@@ -252,11 +308,26 @@
                 </div>
                 <div class="temp-label">Temperature</div>
             </div>
-            <div style="display: flex; flex-direction: column; align-items: center;">
+            <div class="stat-item" id="powerStat" style="display: none;">
+                <div class="temp-display" id="powerDisplay">-- W</div>
+                <div class="temp-label">CPU Power</div>
+            </div>
+            <div class="stat-item">
                 <div class="temp-display" id="loadDisplay">--%</div>
                 <div class="temp-label">CPU Load</div>
             </div>
         </div>
+
+    <div class="sensor-list" id="thermalZones"></div>
+
+    <div class="control-group">
+        <div class="profile-buttons">
+            <button class="profile-btn" data-profile="powersave">Powersave</button>
+            <button class="profile-btn" data-profile="cool">Cool</button>
+            <button class="profile-btn" data-profile="moderate">Moderate</button>
+            <button class="profile-btn" data-profile="performance">Performance</button>
+        </div>
+    </div>
 
     <div class="control-group" id="turboControlGroup">
         <div class="control-header">
@@ -276,9 +347,17 @@
         </div>
         <input type="range" id="throttleSlider" min="10" max="100" value="100" step="1">
     </div>
+
+    <div class="control-group" id="raplControlGroup" style="display: none;">
+        <div class="control-header">
+            <span class="control-label">Running Average Power Limit</span>
+            <span class="control-value" id="raplValue">-- W</span>
+        </div>
+        <input type="range" id="raplSlider" min="1" max="100" value="1" step="0.1">
+    </div>
     </div> <!-- end tab-main -->
 
-    <div id="tab-advanced" class="tab-content">
+    <div id="tab-api" class="tab-content">
         <div class="control-group">
             <div class="control-header">
                 <span class="control-label">API Access</span>
@@ -318,7 +397,15 @@
                 <button class="example-btn" onclick="copyCode('code-post-turbo')">Copy</button>
             </div>
         </div>
-    </div> <!-- end tab-advanced -->
+
+        <div class="example-block">
+            <div class="example-title">Set Running Average Power Limit (e.g., 15 W)</div>
+            <code id="code-post-rapl"></code>
+            <div class="example-actions">
+                <button class="example-btn" onclick="copyCode('code-post-rapl')">Copy</button>
+            </div>
+        </div>
+    </div> <!-- end tab-api -->
 
     <div id="versionDisplay" style="text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 20px;">v--</div>
 </div>
@@ -334,6 +421,13 @@
     const turboWarning = document.getElementById('turboWarning');
     const throttleSlider = document.getElementById('throttleSlider');
     const throttleValue = document.getElementById('throttleValue');
+    const powerStat = document.getElementById('powerStat');
+    const powerDisplay = document.getElementById('powerDisplay');
+    const thermalZones = document.getElementById('thermalZones');
+    const raplControlGroup = document.getElementById('raplControlGroup');
+    const raplSlider = document.getElementById('raplSlider');
+    const raplValue = document.getElementById('raplValue');
+    const profileButtons = document.querySelectorAll('.profile-btn');
     
     const apiToggle = document.getElementById('apiToggle');
     const app = document.getElementById('app');
@@ -342,16 +436,19 @@
         turboboost: true,
         throttling: 100,
         apiEnabled: false,
-        tempUnit: 'C'
+        tempUnit: 'C',
+        raplPowerLimitWatts: null
     };
 
     let isUpdating = false;
+    let latestRapl = null;
 
     // Set dynamic API URLs based on current host
-    const apiBaseUrl = window.location.protocol + "//" + window.location.hostname + ":3000";
+    const apiBaseUrl = window.location.origin;
     document.getElementById('code-get').innerText = `curl ${apiBaseUrl}/api/status`;
     document.getElementById('code-post-throttle').innerText = `curl -X POST ${apiBaseUrl}/api/settings \\\n  -H "Content-Type: application/json" \\\n  -d '{"throttling": 50}'`;
     document.getElementById('code-post-turbo').innerText = `curl -X POST ${apiBaseUrl}/api/settings \\\n  -H "Content-Type: application/json" \\\n  -d '{"turboboost": true}'`;
+    document.getElementById('code-post-rapl').innerText = `curl -X POST ${apiBaseUrl}/api/settings \\\n  -H "Content-Type: application/json" \\\n  -d '{"raplPowerLimitWatts": 15}'`;
 
     function switchTab(tabName) {
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -430,6 +527,88 @@
         loadDisplay.style.color = interpolateColor(lp);
     }
 
+    function formatTemp(tempC, unit) {
+        const displayTemp = unit === 'F' ? (tempC * 9/5 + 32) : tempC;
+        return `${displayTemp.toFixed(1)}°${unit}`;
+    }
+
+    function formatWatts(watts) {
+        return `${Number(watts).toFixed(1)} W`;
+    }
+
+    function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function renderThermalZones(zones, unit) {
+        if (!zones || zones.length === 0) {
+            thermalZones.style.display = 'none';
+            thermalZones.innerHTML = '';
+            return;
+        }
+
+        thermalZones.style.display = 'grid';
+        thermalZones.innerHTML = zones.map(zone => `
+            <div class="sensor-chip">
+                <div class="sensor-value">${formatTemp(zone.temperature, unit)}</div>
+                <div class="temp-label">${zone.name}</div>
+            </div>
+        `).join('');
+    }
+
+    function renderRapl(rapl) {
+        latestRapl = rapl;
+
+        if (rapl && rapl.powerDrawWatts !== null && rapl.powerDrawWatts !== undefined) {
+            powerStat.style.display = 'flex';
+            powerDisplay.innerText = formatWatts(rapl.powerDrawWatts);
+        } else {
+            powerStat.style.display = 'none';
+        }
+
+        const canControlRapl = rapl
+            && rapl.supported
+            && rapl.writable
+            && rapl.powerLimitWatts !== null
+            && rapl.powerLimitWatts !== undefined
+            && rapl.maxPowerLimitWatts !== null
+            && rapl.maxPowerLimitWatts !== undefined;
+
+        if (!canControlRapl) {
+            raplControlGroup.style.display = 'none';
+            return;
+        }
+
+        raplControlGroup.style.display = 'block';
+        raplSlider.min = rapl.minPowerLimitWatts || 1;
+        raplSlider.max = rapl.maxPowerLimitWatts;
+
+        if (document.activeElement !== raplSlider) {
+            raplSlider.value = rapl.powerLimitWatts;
+            raplValue.innerText = formatWatts(rapl.powerLimitWatts);
+        }
+    }
+
+    function getPresetSettings(profile) {
+        const presetMap = {
+            powersave: { throttling: 20, raplPercent: 0.35 },
+            cool: { throttling: 40, raplPercent: 0.50 },
+            moderate: { throttling: 70, raplPercent: 0.75 },
+            performance: { throttling: 100, raplPercent: 1.00 }
+        };
+        const preset = presetMap[profile] || presetMap.moderate;
+        const settings = { throttling: preset.throttling };
+
+        if (latestRapl && latestRapl.supported && latestRapl.writable && latestRapl.maxPowerLimitWatts) {
+            const min = latestRapl.minPowerLimitWatts || 1;
+            const max = latestRapl.maxPowerLimitWatts;
+            const target = max * preset.raplPercent;
+            settings.raplPowerLimitWatts = Math.round(clamp(target, min, max) * 10) / 10;
+        }
+
+        return settings;
+    }
+
     async function fetchStatusData() {
         const res = await fetch('/api/status', {
             headers: { 'X-UI-Token': UI_TOKEN }
@@ -456,6 +635,8 @@
             const displayTemp = isF ? (data.temperature * 9/5 + 32) : data.temperature;
             tempDisplay.innerText = displayTemp.toFixed(1);
             loadDisplay.innerText = (data.load || 0).toFixed(1) + '%';
+            renderThermalZones(data.thermalZones || [], data.tempUnit || 'C');
+            renderRapl(data.rapl);
             
             updateColors(data.temperature, data.load || 0);
 
@@ -477,6 +658,14 @@
                     throttleSlider.value = data.throttling;
                     throttleValue.innerText = data.throttling + '%';
                 }
+
+                if (data.rapl && data.rapl.writable && document.activeElement !== raplSlider) {
+                    const raplSetting = data.raplPowerLimitWatts || data.rapl.powerLimitWatts;
+                    if (raplSetting !== null && raplSetting !== undefined) {
+                        raplSlider.value = raplSetting;
+                        raplValue.innerText = formatWatts(raplSetting);
+                    }
+                }
                 
                 if (document.activeElement !== apiToggle) {
                     apiToggle.checked = data.apiEnabled;
@@ -490,7 +679,8 @@
                     turboboost: data.turboboost,
                     throttling: data.throttling,
                     apiEnabled: data.apiEnabled,
-                    tempUnit: data.tempUnit || 'C'
+                    tempUnit: data.tempUnit || 'C',
+                    raplPowerLimitWatts: data.raplPowerLimitWatts || (data.rapl ? data.rapl.powerLimitWatts : null)
                 };
             }
         } catch (err) {
@@ -541,6 +731,42 @@
             ...currentSettings,
             throttling: parseInt(e.target.value, 10)
         }).finally(() => isUpdating = false).catch(() => {});
+    });
+
+    raplSlider.addEventListener('input', (e) => {
+        raplValue.innerText = formatWatts(parseFloat(e.target.value));
+    });
+
+    raplSlider.addEventListener('change', (e) => {
+        isUpdating = true;
+        saveSettings({
+            ...currentSettings,
+            raplPowerLimitWatts: parseFloat(e.target.value)
+        }).finally(() => isUpdating = false).catch(() => {});
+    });
+
+    profileButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            const presetSettings = getPresetSettings(button.dataset.profile);
+            const nextSettings = {
+                ...currentSettings,
+                ...presetSettings
+            };
+
+            throttleSlider.value = presetSettings.throttling;
+            throttleValue.innerText = presetSettings.throttling + '%';
+
+            if (presetSettings.raplPowerLimitWatts !== undefined) {
+                raplSlider.value = presetSettings.raplPowerLimitWatts;
+                raplValue.innerText = formatWatts(presetSettings.raplPowerLimitWatts);
+            }
+
+            isUpdating = true;
+            saveSettings(nextSettings).finally(() => {
+                isUpdating = false;
+                fetchStatus();
+            }).catch(() => {});
+        });
     });
 
     apiToggle.addEventListener('change', (e) => {

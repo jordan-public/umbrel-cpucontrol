@@ -1,6 +1,6 @@
 # Home Assistant Integration
 
-Because the Umbrel CPU Control app exposes standard HTTP REST endpoints, integrating it into Home Assistant is simple. You can view the live temperatures, CPU load, and interact with the Turbo Boost and Max Performance settings natively inside Home Assistant.
+Because the Umbrel CPU Control app exposes standard HTTP REST endpoints, integrating it into Home Assistant is simple. You can view the live temperatures, CPU load, CPU power draw, and interact with the Turbo Boost and Max Performance settings natively inside Home Assistant.
 
 The app's UI is protected by Umbrel's app proxy. The `/api/*` endpoints are intentionally whitelisted for local automation, but they only respond after API access has been enabled in the app UI. Token-based API authorization is planned for a future release.
 
@@ -14,7 +14,7 @@ Because Umbrel runs the "Container" edition of Home Assistant, you don't have ac
 1. Install the native **"File Browser"** app directly from the Umbrel App Store.
 2. Open File Browser and navigate to `app-data/home-assistant/data/`.
 3. Open `configuration.yaml` and paste the code block below.
-4. **Networking Note:** Docker containers on Umbrel often fail to resolve `.local` domains. You **must** replace `umbrel.local` in the YAML below with either your Umbrel's static local IP (e.g., `192.168.1.50`) or the internal Docker gateway IP (typically `10.21.21.1`).
+4. **Networking Note:** Docker containers on Umbrel often fail to resolve `.local` domains. You **must** replace `umbrel.local` in the YAML below with either your Umbrel's static local IP (e.g., `192.168.1.50`) or the internal Docker gateway IP (typically `10.21.21.1`). If the CPU Control API tab shows a different base URL, use that URL instead.
 
 **For Standard Home Assistant Users:**
 You can paste this using the File Editor or Studio Code Server add-ons. Before saving, ensure `umbrel.local` resolves correctly, or replace it with your Umbrel's IP address.
@@ -36,10 +36,20 @@ rest:
         unique_id: "umbrel_cpu_load"
         value_template: "{{ value_json.load }}"
         unit_of_measurement: "%"
+      - name: "Umbrel CPU Power"
+        unique_id: "umbrel_cpu_power"
+        value_template: "{{ value_json.rapl.powerDrawWatts }}"
+        device_class: power
+        unit_of_measurement: "W"
       - name: "Umbrel Max Performance"
         unique_id: "umbrel_cpu_throttling_limit"
         value_template: "{{ value_json.throttling }}"
         unit_of_measurement: "%"
+      - name: "Umbrel Running Average Power Limit"
+        unique_id: "umbrel_cpu_rapl_limit"
+        value_template: "{{ value_json.rapl.powerLimitWatts }}"
+        device_class: power
+        unit_of_measurement: "W"
     binary_sensor:
       - name: "Umbrel Turbo Boost State"
         unique_id: "umbrel_turbo_boost_state"
@@ -130,7 +140,9 @@ Once Home Assistant has restarted, you will have several new entities available:
 **Sensors:**
 - `sensor.umbrel_cpu_temperature` (°C)
 - `sensor.umbrel_cpu_load` (%)
+- `sensor.umbrel_cpu_power` (W, when RAPL energy counters are available)
 - `sensor.umbrel_cpu_throttling_limit` (Max Performance, %)
+- `sensor.umbrel_cpu_rapl_limit` (W, when RAPL is available)
 
 **Controls:**
 - `switch.umbrel_turbo_boost` (Toggle Turbo Boost ON/OFF)

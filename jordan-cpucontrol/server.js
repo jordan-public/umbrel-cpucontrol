@@ -18,7 +18,8 @@ let globalState = {
     throttling: 100,
     turboboost: true,
     apiEnabled: false,
-    tempUnit: 'C'
+    tempUnit: 'C',
+    raplPowerLimitWatts: null
 };
 
 // Ensure data dir exists
@@ -42,6 +43,7 @@ async function startup() {
         if (state.throttling !== undefined) globalState.throttling = state.throttling;
         if (state.apiEnabled !== undefined) globalState.apiEnabled = state.apiEnabled;
         if (state.tempUnit !== undefined) globalState.tempUnit = state.tempUnit;
+        if (state.raplPowerLimitWatts !== undefined) globalState.raplPowerLimitWatts = state.raplPowerLimitWatts;
         
         if (currentState.turboSupported) {
             if (state.turboboost !== undefined) globalState.turboboost = state.turboboost;
@@ -51,12 +53,18 @@ async function startup() {
         }
 
         await cpu.setThrottling(globalState.throttling);
+        if (globalState.raplPowerLimitWatts !== null && currentState.rapl && currentState.rapl.writable) {
+            await cpu.setRaplPowerLimitWatts(globalState.raplPowerLimitWatts);
+        }
     } catch (err) {
         if (err.code === 'ENOENT') {
             console.log('No saved state found. Discovering current system state.');
             try {
                 const currentState = await cpu.getCurrentState();
                 globalState.throttling = currentState.throttling;
+                if (currentState.rapl && currentState.rapl.writable && currentState.rapl.powerLimitWatts !== null) {
+                    globalState.raplPowerLimitWatts = currentState.rapl.powerLimitWatts;
+                }
                 if (currentState.turboSupported) {
                     globalState.turboboost = currentState.turboboost;
                 } else {
@@ -126,7 +134,10 @@ app.get('/api/status', async (req, res) => {
             turboboost: globalState.turboboost,
             apiEnabled: globalState.apiEnabled,
             tempUnit: globalState.tempUnit,
-            modelName: state.modelName
+            modelName: state.modelName,
+            thermalZones: state.thermalZones,
+            rapl: state.rapl,
+            raplPowerLimitWatts: globalState.raplPowerLimitWatts
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -134,7 +145,7 @@ app.get('/api/status', async (req, res) => {
 });
 
 app.post('/api/settings', async (req, res) => {
-    const { throttling, turboboost, apiEnabled, tempUnit } = req.body;
+    const { throttling, turboboost, apiEnabled, tempUnit, raplPowerLimitWatts } = req.body;
     
     try {
         const currentState = await cpu.getCurrentState();
@@ -154,6 +165,15 @@ app.post('/api/settings', async (req, res) => {
         }
         if (tempUnit !== undefined) {
             globalState.tempUnit = tempUnit;
+        }
+        if (raplPowerLimitWatts !== undefined && currentState.rapl && currentState.rapl.writable) {
+            const requestedRapl = Number(raplPowerLimitWatts);
+            if (!Number.isNaN(requestedRapl)) {
+                const min = currentState.rapl.minPowerLimitWatts || 1;
+                const max = currentState.rapl.maxPowerLimitWatts || requestedRapl;
+                globalState.raplPowerLimitWatts = Math.max(min, Math.min(max, requestedRapl));
+                await cpu.setRaplPowerLimitWatts(globalState.raplPowerLimitWatts);
+            }
         }
         
         await saveState();

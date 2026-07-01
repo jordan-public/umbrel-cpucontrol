@@ -1,4 +1,5 @@
-const fs = require('fs').promises;
+const nodeFs = require('fs');
+const fs = nodeFs.promises;
 const path = require('path');
 const os = require('os');
 
@@ -8,13 +9,18 @@ const NO_TURBO_FILE = path.join(PSTATE_DIR, 'no_turbo');
 const MAX_PERF_FILE = path.join(PSTATE_DIR, 'max_perf_pct');
 const SMT_CONTROL_FILE = '/sys/devices/system/cpu/smt/control';
 const THERMAL_DIR = '/sys/class/thermal';
+const POWERCAP_DIR = '/sys/class/powercap';
+
+let previousRaplSample = null;
 
 async function safeWrite(filePath, data) {
     try {
         await fs.writeFile(filePath, data.toString(), 'utf8');
         console.log(`Wrote ${data} to ${filePath}`);
+        return true;
     } catch (err) {
         console.error(`Failed to write to ${filePath}: ${err.message}`);
+        return false;
     }
 }
 
@@ -32,6 +38,52 @@ async function setThrottling(pct) {
     // 10% to 100%
     const val = Math.max(10, Math.min(100, pct));
     await safeWrite(MAX_PERF_FILE, val);
+}
+
+function roundToTenth(value) {
+    return Math.round(value * 10) / 10;
+}
+
+async function canWrite(filePath) {
+    try {
+        await fs.access(filePath, nodeFs.constants.W_OK);
+        return true;
+    } catch (err) {
+        return false;
+    }
+}
+
+async function getThermalZones() {
+    try {
+        const dirs = await fs.readdir(THERMAL_DIR);
+        const zones = dirs.filter(d => d.startsWith('thermal_zone'));
+        const readings = [];
+
+        for (const zone of zones) {
+            const zonePath = path.join(THERMAL_DIR, zone);
+            const tempFile = path.join(zonePath, 'temp');
+            const typeFile = path.join(zonePath, 'type');
+
+            try {
+                const tempStr = await fs.readFile(tempFile, 'utf8');
+                const tempVal = parseInt(tempStr, 10);
+                if (isNaN(tempVal)) continue;
+
+                const type = await safeRead(typeFile);
+                readings.push({
+                    id: zone,
+                    name: type || zone,
+                    temperature: roundToTenth(tempVal / 1000)
+                });
+            } catch (e) {
+                // Ignore zones that can't be read
+            }
+        }
+
+        return readings;
+    } catch (err) {
+        return [];
+    }
 }
 
 async function setTurboBoost(enabled) {
@@ -52,41 +104,142 @@ async function checkTurboSupported() {
 }
 
 async function getTemperature() {
-    try {
-        const dirs = await fs.readdir(THERMAL_DIR);
-        const zones = dirs.filter(d => d.startsWith('thermal_zone'));
-        
-        let maxTemp = 0;
-        let found = false;
-        
-        for (const zone of zones) {
-            const tempFile = path.join(THERMAL_DIR, zone, 'temp');
-            const typeFile = path.join(THERMAL_DIR, zone, 'type');
-            
-            try {
-                // Some thermal zones might not be CPU (e.g. acpitz, x86_pkg_temp)
-                // Let's just find the max temp across all valid zones
-                const tempStr = await fs.readFile(tempFile, 'utf8');
-                const tempVal = parseInt(tempStr, 10);
-                if (!isNaN(tempVal)) {
-                    maxTemp = Math.max(maxTemp, tempVal);
-                    found = true;
-                }
-            } catch (e) {
-                // Ignore zones that can't be read
-            }
-        }
-        
-        if (found) {
-            // temp is in millidegrees Celsius
-            return maxTemp / 1000;
-        }
-    } catch (err) {
-        // Fallback
+    const zones = await getThermalZones();
+    if (zones.length > 0) {
+        return Math.max(...zones.map(zone => zone.temperature));
     }
     
     // Default fallback if no sysfs available (e.g. on Mac)
     return 45.0 + Math.random() * 5.0; // dummy temp
+}
+
+async function walkPowercapDirs(dirPath, depth = 0) {
+    if (depth > 3) return [];
+
+    try {
+        const entries = await fs.readdir(dirPath, { withFileTypes: true });
+        const dirs = [];
+
+        for (const entry of entries) {
+            if ((!entry.isDirectory() && !entry.isSymbolicLink()) || !entry.name.startsWith('intel-rapl')) continue;
+
+            const childPath = path.join(dirPath, entry.name);
+            dirs.push(childPath);
+            dirs.push(...await walkPowercapDirs(childPath, depth + 1));
+        }
+
+        return dirs;
+    } catch (err) {
+        return [];
+    }
+}
+
+async function findRaplPackageZone() {
+    const dirs = await walkPowercapDirs(POWERCAP_DIR);
+    const candidates = [];
+
+    for (const dir of dirs) {
+        const name = await safeRead(path.join(dir, 'name'));
+        const energyFile = path.join(dir, 'energy_uj');
+        const limitFile = path.join(dir, 'constraint_0_power_limit_uw');
+        const energy = await safeRead(energyFile);
+        const limit = await safeRead(limitFile);
+
+        if (energy === null && limit === null) continue;
+
+        candidates.push({
+            dir,
+            name: name || path.basename(dir),
+            energyFile,
+            limitFile
+        });
+    }
+
+    return candidates.find(zone => /package|pkg/i.test(zone.name)) || candidates[0] || null;
+}
+
+async function getRaplState() {
+    const zone = await findRaplPackageZone();
+    if (!zone) {
+        previousRaplSample = null;
+        return {
+            supported: false,
+            powerDrawWatts: null,
+            powerLimitWatts: null,
+            minPowerLimitWatts: null,
+            maxPowerLimitWatts: null,
+            writable: false
+        };
+    }
+
+    const energyRaw = await safeRead(zone.energyFile);
+    const maxEnergyRaw = await safeRead(path.join(zone.dir, 'max_energy_range_uj'));
+    let powerDrawWatts = null;
+
+    if (energyRaw !== null) {
+        const energy = parseInt(energyRaw, 10);
+        const maxEnergy = maxEnergyRaw !== null ? parseInt(maxEnergyRaw, 10) : null;
+        const now = Date.now();
+
+        if (!isNaN(energy) && previousRaplSample && previousRaplSample.file === zone.energyFile) {
+            let energyDelta = energy - previousRaplSample.energy;
+            if (energyDelta < 0 && maxEnergy && !isNaN(maxEnergy)) {
+                energyDelta = (maxEnergy - previousRaplSample.energy) + energy;
+            }
+
+            const seconds = (now - previousRaplSample.time) / 1000;
+            if (energyDelta >= 0 && seconds > 0) {
+                powerDrawWatts = roundToTenth((energyDelta / 1000000) / seconds);
+            }
+        }
+
+        if (!isNaN(energy)) {
+            previousRaplSample = {
+                file: zone.energyFile,
+                energy,
+                time: now
+            };
+        }
+    }
+
+    const limitRaw = await safeRead(zone.limitFile);
+    const minRaw = await safeRead(path.join(zone.dir, 'constraint_0_min_power_uw'));
+    const maxRaw = await safeRead(path.join(zone.dir, 'constraint_0_max_power_uw'));
+    const writable = limitRaw !== null && await canWrite(zone.limitFile);
+
+    const parsedLimit = limitRaw !== null ? parseInt(limitRaw, 10) : NaN;
+    const parsedMin = minRaw !== null ? parseInt(minRaw, 10) : NaN;
+    const parsedMax = maxRaw !== null ? parseInt(maxRaw, 10) : NaN;
+    const powerLimitWatts = !isNaN(parsedLimit) ? roundToTenth(parsedLimit / 1000000) : null;
+    const minPowerLimitWatts = !isNaN(parsedMin) ? roundToTenth(parsedMin / 1000000) : null;
+    const maxPowerLimitWatts = !isNaN(parsedMax) ? roundToTenth(parsedMax / 1000000) : null;
+
+    return {
+        supported: true,
+        name: zone.name,
+        powerDrawWatts,
+        powerLimitWatts,
+        minPowerLimitWatts: minPowerLimitWatts || 1,
+        maxPowerLimitWatts,
+        writable
+    };
+}
+
+async function setRaplPowerLimitWatts(watts) {
+    const requestedWatts = Number(watts);
+    if (Number.isNaN(requestedWatts)) return false;
+
+    const rapl = await getRaplState();
+    if (!rapl.supported || !rapl.writable || rapl.powerLimitWatts === null) return false;
+
+    const min = rapl.minPowerLimitWatts || 1;
+    const max = rapl.maxPowerLimitWatts || Math.max(requestedWatts, rapl.powerLimitWatts);
+    const clamped = Math.max(min, Math.min(max, requestedWatts));
+    const microwatts = Math.round(clamped * 1000000);
+
+    const zone = await findRaplPackageZone();
+    if (!zone) return false;
+    return safeWrite(zone.limitFile, microwatts);
 }
 
 let previousCpu = getCpuTimes();
@@ -141,7 +294,10 @@ async function getCurrentState() {
     const maxPerf = await safeRead(MAX_PERF_FILE);
     const smtControl = await safeRead(SMT_CONTROL_FILE);
     
-    const temp = await getTemperature();
+    const thermalZones = await getThermalZones();
+    const temp = thermalZones.length > 0
+        ? Math.max(...thermalZones.map(zone => zone.temperature))
+        : await getTemperature();
     
     let throttling = 100;
     if (maxPerf !== null) {
@@ -158,21 +314,26 @@ async function getCurrentState() {
     const load = getCpuLoad();
     
     const modelName = await getCpuModelName();
+    const rapl = await getRaplState();
 
     return {
-        temperature: Math.round(temp * 10) / 10,
-        load: Math.round(load * 10) / 10,
+        temperature: roundToTenth(temp),
+        thermalZones,
+        load: roundToTenth(load),
         throttling,
         turboboost,
         turboSupported,
-        modelName
+        modelName,
+        rapl
     };
 }
 
 module.exports = {
     setThrottling,
     setTurboBoost,
+    setRaplPowerLimitWatts,
     getTemperature,
+    getThermalZones,
     getCurrentState,
     getCpuModelName
 };

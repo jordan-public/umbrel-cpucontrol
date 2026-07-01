@@ -1,5 +1,6 @@
 # Home Assistant Package for Umbrel CPU Control
 # Be sure to replace umbrel.local with your Umbrel's IP address if umbrel.local doesn't resolve for your Home Assistant instance.
+# If the CPU Control API tab shows a different base URL, use that URL instead.
 
 rest:
   - resource: "http://umbrel.local:3000/api/status"
@@ -14,10 +15,20 @@ rest:
         unique_id: "umbrel_cpu_load"
         value_template: "{{ value_json.load }}"
         unit_of_measurement: "%"
+      - name: "Umbrel CPU Power"
+        unique_id: "umbrel_cpu_power"
+        value_template: "{{ value_json.rapl.powerDrawWatts }}"
+        device_class: power
+        unit_of_measurement: "W"
       - name: "Umbrel Max Performance"
         unique_id: "umbrel_cpu_throttling_limit"
         value_template: "{{ value_json.throttling }}"
         unit_of_measurement: "%"
+      - name: "Umbrel Running Average Power Limit"
+        unique_id: "umbrel_cpu_rapl_limit"
+        value_template: "{{ value_json.rapl.powerLimitWatts }}"
+        device_class: power
+        unit_of_measurement: "W"
     binary_sensor:
       - name: "Umbrel Turbo Boost State"
         unique_id: "umbrel_turbo_boost_state"

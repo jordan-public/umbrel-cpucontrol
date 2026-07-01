@@ -1,7 +1,7 @@
 {
   "name": "umbrel-cpucontrol",
   "version": "1.0.23",
-  "description": "Take full control of your node's performance to prevent overheating and maximize energy efficiency! Monitor and control CPU temperature, Load, Turbo Boost, and Max Performance via UI and API.",
+  "description": "Monitor CPU temperature, load, power draw, Turbo Boost, Max Performance, and RAPL power limits via UI and API.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
