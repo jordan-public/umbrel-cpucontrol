@@ -2,7 +2,7 @@ manifestVersion: 1
 id: cpucontrol
 category: Utilities
 name: Cpu Control
-version: "1.0.19"
+version: "1.0.18"
 description: >-
   Take full control of your node's performance! This app empowers you to monitor and manage your CPU directly, ensuring your Umbrel stays cool, quiet, and perfectly optimized. Keep a close eye on hardware health with real-time CPU Temperature and CPU Load metrics.
 
