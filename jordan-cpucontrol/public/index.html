@@ -378,11 +378,11 @@
 
     <div id="tab-main" class="tab-content active">
         <div class="stat-card stat-grid">
-            <div class="stat-item" id="powerStat" style="display: none;">
+            <div class="stat-item has-tooltip" id="powerStat" style="display: none;">
                 <div class="temp-display" id="powerDisplay">-- W</div>
                 <div class="temp-label">CPU Power</div>
             </div>
-            <div class="stat-item">
+            <div class="stat-item has-tooltip" data-tooltip="Raw source: OS CPU time counters&#10;Implementation: Node.js os.cpus() aggregate">
                 <div class="temp-display" id="loadDisplay">--%</div>
                 <div class="temp-label">CPU Load</div>
             </div>
@@ -738,8 +738,13 @@
         if (rapl && rapl.powerDrawWatts !== null && rapl.powerDrawWatts !== undefined) {
             powerStat.style.display = 'flex';
             powerDisplay.innerText = formatWatts(rapl.powerDrawWatts);
+            powerStat.setAttribute(
+                'data-tooltip',
+                `Powercap zone: ${rapl.name || 'Unknown'}\nRaw counter: energy_uj delta`
+            );
         } else {
             powerStat.style.display = 'none';
+            powerStat.removeAttribute('data-tooltip');
         }
 
         const canControlRapl = rapl
