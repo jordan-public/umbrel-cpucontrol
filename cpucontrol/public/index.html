@@ -240,9 +240,13 @@
             <div style="display: flex; flex-direction: column; align-items: center;">
                 <div style="display: flex; align-items: center; justify-content: center;">
                     <div class="temp-display" id="tempDisplay">--</div>
-                    <div class="unit-toggle">
-                        <button class="unit-btn active" id="btnC" onclick="setUnit('C')">°C</button>
-                        <button class="unit-btn" id="btnF" onclick="setUnit('F')">°F</button>
+                    <div class="unit-toggle" style="display: flex; align-items: center; margin-left: 10px;">
+                        <span style="font-size: 14px; font-weight: bold; margin-right: 5px;">°C</span>
+                        <label class="switch">
+                            <input type="checkbox" id="unitToggle">
+                            <span class="slider"></span>
+                        </label>
+                        <span style="font-size: 14px; font-weight: bold; margin-left: 5px;">°F</span>
                     </div>
                 </div>
                 <div class="temp-label">Temperature</div>
@@ -323,8 +327,7 @@
 
     const tempDisplay = document.getElementById('tempDisplay');
     const loadDisplay = document.getElementById('loadDisplay');
-    const btnC = document.getElementById('btnC');
-    const btnF = document.getElementById('btnF');
+    const unitToggle = document.getElementById('unitToggle');
     const turboToggle = document.getElementById('turboToggle');
     const turboSlider = document.getElementById('turboSlider');
     const turboWarning = document.getElementById('turboWarning');
@@ -389,8 +392,7 @@
 
     function setUnit(unit) {
         currentSettings.tempUnit = unit;
-        btnC.classList.toggle('active', unit === 'C');
-        btnF.classList.toggle('active', unit === 'F');
+        unitToggle.checked = (unit === 'F');
         isUpdating = true;
         saveSettings({
             ...currentSettings,
@@ -473,8 +475,9 @@
                     apiToggle.checked = data.apiEnabled;
                 }
 
-                btnC.classList.toggle('active', data.tempUnit !== 'F');
-                btnF.classList.toggle('active', data.tempUnit === 'F');
+                if (document.activeElement !== unitToggle) {
+                    unitToggle.checked = (data.tempUnit === 'F');
+                }
 
                 currentSettings = {
                     turboboost: data.turboboost,
@@ -539,6 +542,11 @@
             ...currentSettings,
             apiEnabled: e.target.checked
         }).finally(() => isUpdating = false).catch(() => {});
+    });
+
+    unitToggle.addEventListener('change', (e) => {
+        const newUnit = e.target.checked ? 'F' : 'C';
+        setUnit(newUnit);
     });
 
     // Initial fetch and polling
