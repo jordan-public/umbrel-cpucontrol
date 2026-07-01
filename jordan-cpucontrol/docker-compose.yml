@@ -9,7 +9,7 @@ services:
       PROXY_AUTH_WHITELIST: "/api/*"
 
   web:
-    image: jordanst/cpucontrol:1.0.26
+    image: jordanst/cpucontrol:1.0.27
     restart: on-failure
     volumes:
       - /sys:/sys

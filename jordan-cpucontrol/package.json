@@ -1,6 +1,6 @@
 {
   "name": "umbrel-cpucontrol",
-  "version": "1.0.26",
+  "version": "1.0.27",
   "description": "Monitor CPU temperature, load, power draw, Turbo Boost, Max Performance, and RAPL power limits via UI and API.",
   "main": "index.js",
   "scripts": {
