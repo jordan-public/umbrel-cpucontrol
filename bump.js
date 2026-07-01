@@ -53,6 +53,13 @@ deploy = deploy.replace(/version tag `[0-9]+\.[0-9]+\.[0-9]+`/g, `version tag \`
 fs.writeFileSync(deployPath, deploy);
 console.log(`Updated DEPLOY.md`);
 
+// Update deploy.sh example version
+const deployScriptPath = path.join(__dirname, 'deploy.sh');
+let deployScript = fs.readFileSync(deployScriptPath, 'utf8');
+deployScript = deployScript.replace(/\.\/deploy\.sh [0-9]+\.[0-9]+\.[0-9]+/g, `./deploy.sh ${newVersion}`);
+fs.writeFileSync(deployScriptPath, deployScript);
+console.log(`Updated deploy.sh`);
+
 // Update README.md API version example
 const readmePath = path.join(__dirname, 'README.md');
 let readme = fs.readFileSync(readmePath, 'utf8');

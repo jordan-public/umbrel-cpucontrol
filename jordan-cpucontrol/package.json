@@ -1,6 +1,6 @@
 {
   "name": "umbrel-cpucontrol",
-  "version": "1.0.22",
+  "version": "1.0.23",
   "description": "Take full control of your node's performance to prevent overheating and maximize energy efficiency! Monitor and control CPU temperature, Load, Turbo Boost, and Throttling via UI and API.",
   "main": "index.js",
   "scripts": {

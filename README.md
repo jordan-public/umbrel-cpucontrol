@@ -13,6 +13,12 @@ Source code: https://github.com/jordan-public/umbrel-cpucontrol
 - **Persistent State:** The app saves your configuration and automatically restores it upon startup.
 - **API Access:** Exposes HTTP endpoints for reading and writing CPU parameters programmatically.
 
+## Security and Networking
+
+The web UI is served through Umbrel's app proxy with Umbrel authentication enabled. The container does not publish port `3000` directly to the LAN.
+
+The `/api/*` endpoints are whitelisted at the Umbrel proxy so local automation such as Home Assistant can call them. API requests are only accepted when API access is enabled in the app UI. Token-based API authorization is planned for a future release.
+
 ## Home Assistant Integration
 Want to add these controls to your smart home dashboard? Check out the **[Home Assistant Integration Guide](integrations/home-assistant/README.md)** for a complete, ready-to-use copy & paste YAML configuration!
 
@@ -23,7 +29,7 @@ Returns the current state of the CPU.
 **Response:**
 ```json
 {
-  "version": "1.0.22",
+  "version": "1.0.23",
   "temperature": 100,
   "load": 25.4,
   "turboSupported": true,

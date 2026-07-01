@@ -2,6 +2,8 @@
 
 Because the Umbrel CPU Control app exposes standard HTTP REST endpoints, integrating it into Home Assistant is simple. You can view the live temperatures, CPU load, and interact with the Turbo Boost and Throttling settings natively inside Home Assistant.
 
+The app's UI is protected by Umbrel's app proxy. The `/api/*` endpoints are intentionally whitelisted for local automation, but they only respond after API access has been enabled in the app UI. Token-based API authorization is planned for a future release.
+
 There are two ways to add this to your Home Assistant instance:
 
 ## Option 1: Copy and Paste (Easiest)
