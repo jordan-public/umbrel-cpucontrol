@@ -15,10 +15,14 @@ description: >-
   Source code: https://github.com/jordan-public/umbrel-cpucontrol
 
   DISCLAIMER: Use at your own risk. The developer, Jordan Stojanovski, assumes no responsibility or liability for any hardware damage, system instability, or data loss that may arise from using this software to modify core CPU parameters.
+
+  Works only with Umbrel on Intel processors.
 tagline: Keep your node cool and efficient
 icon: "https://raw.githubusercontent.com/jordan-public/umbrel-cpucontrol/main/jordan-cpucontrol/icon.svg"
 developer: Jordan Stojanovski
 website: "https://github.com/jordan-public/umbrel-cpucontrol"
+supportedArchitectures:
+  - x86_64
 dependencies: []
 repo: "https://github.com/jordan-public/umbrel-cpucontrol"
 support: "https://github.com/jordan-public/umbrel-cpucontrol/issues"
