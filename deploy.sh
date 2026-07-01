@@ -17,7 +17,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "🐳 Building and pushing Docker image to Docker Hub..."
-cd jordan-cpucontrol || exit 1
+cd cpucontrol || exit 1
 docker buildx build --platform linux/amd64 -t jordanst/cpucontrol:"$VERSION" -t jordanst/cpucontrol:latest --push .
 
 if [ $? -ne 0 ]; then

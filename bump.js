@@ -7,15 +7,15 @@ if (!newVersion) {
     process.exit(1);
 }
 
-// Update jordan-cpucontrol/package.json
-const pkgPath = path.join(__dirname, 'jordan-cpucontrol', 'package.json');
+// Update cpucontrol/package.json
+const pkgPath = path.join(__dirname, 'cpucontrol', 'package.json');
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 pkg.version = newVersion;
 fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 console.log(`Updated package.json`);
 
-// Update jordan-cpucontrol/package-lock.json (if exists)
-const lockPath = path.join(__dirname, 'jordan-cpucontrol', 'package-lock.json');
+// Update cpucontrol/package-lock.json (if exists)
+const lockPath = path.join(__dirname, 'cpucontrol', 'package-lock.json');
 if (fs.existsSync(lockPath)) {
     const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
     lock.version = newVersion;
@@ -26,15 +26,15 @@ if (fs.existsSync(lockPath)) {
     console.log(`Updated package-lock.json`);
 }
 
-// Update jordan-cpucontrol/umbrel-app.yml
-const appYmlPath = path.join(__dirname, 'jordan-cpucontrol', 'umbrel-app.yml');
+// Update cpucontrol/umbrel-app.yml
+const appYmlPath = path.join(__dirname, 'cpucontrol', 'umbrel-app.yml');
 let appYml = fs.readFileSync(appYmlPath, 'utf8');
 appYml = appYml.replace(/version:\s*".*"/, `version: "${newVersion}"`);
 fs.writeFileSync(appYmlPath, appYml);
 console.log(`Updated umbrel-app.yml`);
 
-// Update jordan-cpucontrol/docker-compose.yml
-const dcPath = path.join(__dirname, 'jordan-cpucontrol', 'docker-compose.yml');
+// Update cpucontrol/docker-compose.yml
+const dcPath = path.join(__dirname, 'cpucontrol', 'docker-compose.yml');
 let dc = fs.readFileSync(dcPath, 'utf8');
 dc = dc.replace(/cpucontrol:[0-9]+\.[0-9]+\.[0-9]+/g, `cpucontrol:${newVersion}`);
 fs.writeFileSync(dcPath, dc);

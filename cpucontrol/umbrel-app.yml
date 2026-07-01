@@ -1,5 +1,5 @@
 manifestVersion: 1
-id: jordan-cpucontrol
+id: cpucontrol
 category: Utilities
 name: Cpu Control
 version: "1.0.18"
@@ -14,7 +14,7 @@ description: >-
 
   DISCLAIMER: Use at your own risk. The developer, Jordan Stojanovski, assumes no responsibility or liability for any hardware damage, system instability, or data loss that may arise from using this software to modify core CPU parameters.
 tagline: Keep your node cool and efficient
-icon: "https://raw.githubusercontent.com/jordan-public/umbrel-cpucontrol/main/jordan-cpucontrol/icon.svg"
+icon: "https://raw.githubusercontent.com/jordan-public/umbrel-cpucontrol/main/cpucontrol/icon.svg"
 developer: Jordan Stojanovski
 website: "https://github.com/jordan-public/umbrel-cpucontrol"
 dependencies: []
@@ -22,8 +22,8 @@ repo: "https://github.com/jordan-public/umbrel-cpucontrol"
 support: "https://github.com/jordan-public/umbrel-cpucontrol/issues"
 port: 3000
 gallery:
-  - "https://raw.githubusercontent.com/jordan-public/umbrel-cpucontrol/main/jordan-cpucontrol/1.jpg"
-  - "https://raw.githubusercontent.com/jordan-public/umbrel-cpucontrol/main/jordan-cpucontrol/2.jpg"
+  - "https://raw.githubusercontent.com/jordan-public/umbrel-cpucontrol/main/cpucontrol/1.jpg"
+  - "https://raw.githubusercontent.com/jordan-public/umbrel-cpucontrol/main/cpucontrol/2.jpg"
 path: ""
 defaultUsername: ""
 defaultPassword: ""
