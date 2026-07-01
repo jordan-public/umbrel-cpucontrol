@@ -446,12 +446,12 @@
         <div style="position: relative; margin-bottom: 15px;">
             <span class="control-label">Max Performance</span>
             <div style="position: absolute; left: 0; right: 0; text-align: center; top: 0; pointer-events: none;">
-                <span class="control-value" id="throttleValue">100%</span>
+                <span class="control-value" id="maxPerformanceValue">100%</span>
             </div>
         </div>
         <div style="display: flex; align-items: center; gap: 10px;">
             <span class="range-label">10%</span>
-            <input type="range" id="throttleSlider" min="10" max="100" value="100" step="1" style="flex: 1; margin: 0;">
+            <input type="range" id="maxPerformanceSlider" min="10" max="100" value="100" step="1" style="flex: 1; margin: 0;">
             <span class="range-label">100%</span>
         </div>
     </div>
@@ -499,9 +499,9 @@
 
         <div class="example-block">
             <div class="example-title">Set Max Performance (e.g., 50%)</div>
-            <code id="code-post-throttle"></code>
+            <code id="code-post-max-perf"></code>
             <div class="example-actions">
-                <button class="example-btn" onclick="copyCode('code-post-throttle')">Copy</button>
+                <button class="example-btn" onclick="copyCode('code-post-max-perf')">Copy</button>
             </div>
         </div>
 
@@ -533,8 +533,8 @@
     const turboToggle = document.getElementById('turboToggle');
     const turboSlider = document.getElementById('turboSlider');
     const turboWarning = document.getElementById('turboWarning');
-    const throttleSlider = document.getElementById('throttleSlider');
-    const throttleValue = document.getElementById('throttleValue');
+    const maxPerformanceSlider = document.getElementById('maxPerformanceSlider');
+    const maxPerformanceValue = document.getElementById('maxPerformanceValue');
     const powerStat = document.getElementById('powerStat');
     const powerDisplay = document.getElementById('powerDisplay');
     const temperaturePanel = document.getElementById('temperaturePanel');
@@ -561,7 +561,7 @@
     // Set dynamic API URLs based on current host
     const apiBaseUrl = window.location.origin;
     document.getElementById('code-get').innerText = `curl ${apiBaseUrl}/api/status`;
-    document.getElementById('code-post-throttle').innerText = `curl -X POST ${apiBaseUrl}/api/settings \\\n  -H "Content-Type: application/json" \\\n  -d '{"maxPerformancePercent": 50}'`;
+    document.getElementById('code-post-max-perf').innerText = `curl -X POST ${apiBaseUrl}/api/settings \\\n  -H "Content-Type: application/json" \\\n  -d '{"maxPerformancePercent": 50}'`;
     document.getElementById('code-post-turbo').innerText = `curl -X POST ${apiBaseUrl}/api/settings \\\n  -H "Content-Type: application/json" \\\n  -d '{"turboboost": true}'`;
     document.getElementById('code-post-rapl').innerText = `curl -X POST ${apiBaseUrl}/api/settings \\\n  -H "Content-Type: application/json" \\\n  -d '{"raplPowerLimitWatts": 15}'`;
 
@@ -881,9 +881,9 @@
                     turboToggle.checked = data.turboboost;
                 }
                 
-                if (document.activeElement !== throttleSlider) {
-                    throttleSlider.value = data.maxPerformancePercent;
-                    throttleValue.innerText = data.maxPerformancePercent + '%';
+                if (document.activeElement !== maxPerformanceSlider) {
+                    maxPerformanceSlider.value = data.maxPerformancePercent;
+                    maxPerformanceValue.innerText = data.maxPerformancePercent + '%';
                 }
 
                 if (data.rapl && data.rapl.writable && document.activeElement !== raplSlider) {
@@ -948,11 +948,11 @@
         }).finally(() => isUpdating = false).catch(() => {});
     });
 
-    throttleSlider.addEventListener('input', (e) => {
-        throttleValue.innerText = e.target.value + '%';
+    maxPerformanceSlider.addEventListener('input', (e) => {
+        maxPerformanceValue.innerText = e.target.value + '%';
     });
 
-    throttleSlider.addEventListener('change', (e) => {
+    maxPerformanceSlider.addEventListener('change', (e) => {
         isUpdating = true;
         saveSettings({
             ...currentSettings,
@@ -980,8 +980,8 @@
                 ...presetSettings
             };
 
-            throttleSlider.value = presetSettings.maxPerformancePercent;
-            throttleValue.innerText = presetSettings.maxPerformancePercent + '%';
+            maxPerformanceSlider.value = presetSettings.maxPerformancePercent;
+            maxPerformanceValue.innerText = presetSettings.maxPerformancePercent + '%';
             turboToggle.checked = presetSettings.turboboost;
 
             if (presetSettings.raplPowerLimitWatts !== undefined) {

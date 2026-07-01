@@ -42,7 +42,7 @@ rest:
         device_class: power
         unit_of_measurement: "W"
       - name: "Umbrel Max Performance"
-        unique_id: "umbrel_cpu_throttling_limit"
+        unique_id: "umbrel_cpu_max_performance_limit"
         value_template: "{{ value_json.maxPerformancePercent }}"
         unit_of_measurement: "%"
       - name: "Umbrel Running Average Power Limit"
@@ -63,7 +63,7 @@ rest_command:
       content_type: 'application/json'
     payload: '{"turboboost": {{ state }}}'
     
-  set_umbrel_throttling:
+  set_umbrel_max_performance:
     url: "http://umbrel.local:3000/api/settings"
     method: POST
     headers:
@@ -87,7 +87,7 @@ switch:
             state: false
 
 input_number:
-  umbrel_cpu_throttling:
+  umbrel_cpu_max_performance:
     name: "Set Umbrel Max Performance"
     min: 10
     max: 100
@@ -96,30 +96,30 @@ input_number:
     icon: mdi:speedometer
 
 automation:
-  - id: 'umbrel_cpu_throttling_sync'
+  - id: 'umbrel_cpu_max_performance_sync'
     alias: "Umbrel - Sync Max Performance Input"
     description: "Sends the API command when the Max Performance slider is changed."
     trigger:
       - platform: state
-        entity_id: input_number.umbrel_cpu_throttling
+        entity_id: input_number.umbrel_cpu_max_performance
     action:
-      - service: rest_command.set_umbrel_throttling
+      - service: rest_command.set_umbrel_max_performance
         data:
           level: "{{ trigger.to_state.state | int }}"
 
-  - id: 'umbrel_cpu_throttling_update'
+  - id: 'umbrel_cpu_max_performance_update'
     alias: "Umbrel - Update Max Performance Slider from API"
     description: "Updates the slider if Max Performance was changed directly on the Umbrel dashboard."
     trigger:
       - platform: state
-        entity_id: sensor.umbrel_cpu_throttling_limit
+        entity_id: sensor.umbrel_cpu_max_performance_limit
     condition:
       - condition: template
-        value_template: "{{ states('input_number.umbrel_cpu_throttling') | int != trigger.to_state.state | int }}"
+        value_template: "{{ states('input_number.umbrel_cpu_max_performance') | int != trigger.to_state.state | int }}"
     action:
       - service: input_number.set_value
         data:
-          entity_id: input_number.umbrel_cpu_throttling
+          entity_id: input_number.umbrel_cpu_max_performance
           value: "{{ trigger.to_state.state | int }}"
 ```
 
@@ -141,11 +141,11 @@ Once Home Assistant has restarted, you will have several new entities available:
 - `sensor.umbrel_cpu_temperature` (°C)
 - `sensor.umbrel_cpu_load` (%)
 - `sensor.umbrel_cpu_power` (W, when RAPL energy counters are available)
-- `sensor.umbrel_cpu_throttling_limit` (Max Performance, %)
+- `sensor.umbrel_cpu_max_performance_limit` (Max Performance, %)
 - `sensor.umbrel_cpu_rapl_limit` (W, when RAPL is available)
 
 **Controls:**
 - `switch.umbrel_turbo_boost` (Toggle Turbo Boost ON/OFF)
-- `input_number.umbrel_cpu_throttling` (Slider to set Max Performance)
+- `input_number.umbrel_cpu_max_performance` (Slider to set Max Performance)
 
 You can add these entities directly to an **Entities Card** in your Lovelace dashboard to monitor and control your Umbrel node!

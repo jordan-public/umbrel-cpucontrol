@@ -2,7 +2,7 @@ manifestVersion: 1
 id: jordan-cpucontrol
 category: Utilities
 name: Cpu Control
-version: "1.0.28"
+version: "1.0.29"
 description: >-
   Take full control of your node's performance! This app empowers you to monitor and manage your CPU directly, ensuring your Umbrel stays cool, quiet, and perfectly optimized. Keep a close eye on hardware health with real-time CPU Temperature, CPU Load, CPU Power, and available thermal sensor metrics.
 
