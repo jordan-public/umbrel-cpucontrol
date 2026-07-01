@@ -184,7 +184,7 @@ app.post('/api/settings', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 80;
 
 startup().then(() => {
     app.listen(PORT, () => {

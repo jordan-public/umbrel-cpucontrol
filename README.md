@@ -18,7 +18,7 @@ Source code: https://github.com/jordan-public/umbrel-cpucontrol
 
 ## Security and Networking
 
-The web UI is served through Umbrel's app proxy with Umbrel authentication enabled. The container does not publish port `3000` directly to the LAN.
+The web UI is served through Umbrel's app proxy with Umbrel authentication enabled. The app listens on port `80` inside Docker, while Umbrel uses port `3000` as the external app port. The web container does not publish port `3000` directly to the LAN.
 
 The `/api/*` endpoints are whitelisted at the Umbrel proxy so local automation such as Home Assistant can call them. API requests are only accepted when API access is enabled in the app UI. Token-based API authorization is planned for a future release.
 
