@@ -306,7 +306,7 @@
                         <span style="font-size: 14px; font-weight: bold; margin-left: 5px;">°F</span>
                     </div>
                 </div>
-                <div class="temp-label">Temperature</div>
+                <div class="temp-label">Hottest Temperature</div>
             </div>
             <div class="stat-item" id="powerStat" style="display: none;">
                 <div class="temp-display" id="powerDisplay">-- W</div>
@@ -540,6 +540,67 @@
         return Math.max(min, Math.min(max, value));
     }
 
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        })[char]);
+    }
+
+    function titleCaseSensorName(value) {
+        const acronyms = new Map([
+            ['acpi', 'ACPI'],
+            ['cpu', 'CPU'],
+            ['gpu', 'GPU'],
+            ['nvme', 'NVMe'],
+            ['pch', 'PCH'],
+            ['soc', 'SoC'],
+            ['wifi', 'Wi-Fi'],
+            ['x86', 'x86']
+        ]);
+
+        return String(value)
+            .replace(/[_-]+/g, ' ')
+            .replace(/([a-z])([0-9])/gi, '$1 $2')
+            .trim()
+            .split(/\s+/)
+            .map(word => {
+                const lower = word.toLowerCase();
+                if (acronyms.has(lower)) return acronyms.get(lower);
+                return lower.charAt(0).toUpperCase() + lower.slice(1);
+            })
+            .join(' ');
+    }
+
+    function formatThermalSensorName(rawName, fallbackId) {
+        const raw = String(rawName || fallbackId || '').trim();
+        const normalized = raw.toLowerCase().replace(/[\s-]+/g, '_');
+
+        const knownNames = new Map([
+            ['x86_pkg_temp', 'CPU Package'],
+            ['coretemp', 'CPU Core Temperature'],
+            ['k10temp', 'CPU Package'],
+            ['cpu_thermal', 'CPU Thermal Zone'],
+            ['cpu_thermal_zone', 'CPU Thermal Zone'],
+            ['soc_thermal', 'SoC Thermal Zone'],
+            ['soc_thermal_zone', 'SoC Thermal Zone'],
+            ['acpitz', 'ACPI Thermal Zone']
+        ]);
+
+        if (knownNames.has(normalized)) return knownNames.get(normalized);
+        if (normalized.startsWith('pch')) return 'PCH Chipset';
+        if (normalized.startsWith('nvme')) return 'NVMe Drive';
+        if (normalized.startsWith('iwlwifi')) return 'Wi-Fi Adapter';
+        if (/^thermal_zone\d+$/.test(normalized)) {
+            return titleCaseSensorName(normalized);
+        }
+
+        return titleCaseSensorName(raw);
+    }
+
     function renderThermalZones(zones, unit) {
         if (!zones || zones.length === 0) {
             thermalZones.style.display = 'none';
@@ -548,12 +609,16 @@
         }
 
         thermalZones.style.display = 'grid';
-        thermalZones.innerHTML = zones.map(zone => `
-            <div class="sensor-chip">
+        thermalZones.innerHTML = zones.map(zone => {
+            const rawName = zone.name || zone.id;
+            const displayName = formatThermalSensorName(zone.name, zone.id);
+
+            return `
+            <div class="sensor-chip" title="Raw sensor: ${escapeHtml(rawName)}">
                 <div class="sensor-value">${formatTemp(zone.temperature, unit)}</div>
-                <div class="temp-label">${zone.name}</div>
-            </div>
-        `).join('');
+                <div class="temp-label">${escapeHtml(displayName)}</div>
+            </div>`;
+        }).join('');
     }
 
     function renderRapl(rapl) {
