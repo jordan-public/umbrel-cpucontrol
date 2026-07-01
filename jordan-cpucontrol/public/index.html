@@ -752,9 +752,17 @@
                 'data-tooltip',
                 `Powercap zone: ${rapl.name || 'Unknown'}\nRaw counter: energy_uj delta`
             );
+            if (rapl.minPowerLimitWatts !== undefined && rapl.maxPowerLimitWatts !== undefined && rapl.maxPowerLimitWatts > rapl.minPowerLimitWatts) {
+                let p = (rapl.powerDrawWatts - rapl.minPowerLimitWatts) / (rapl.maxPowerLimitWatts - rapl.minPowerLimitWatts);
+                p = Math.max(0, Math.min(1, p));
+                powerDisplay.style.color = interpolateColor(p);
+            } else {
+                powerDisplay.style.color = 'var(--primary)';
+            }
         } else {
             powerStat.style.display = 'none';
             powerStat.removeAttribute('data-tooltip');
+            powerDisplay.style.color = 'var(--primary)';
         }
 
         const canControlRapl = rapl
