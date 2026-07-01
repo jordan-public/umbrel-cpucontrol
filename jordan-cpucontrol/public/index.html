@@ -405,10 +405,10 @@
 
     <div class="control-group">
         <div class="profile-buttons">
-            <button class="profile-btn has-tooltip" data-profile="powersave" data-tooltip="Max Performance: 20%&#10;RAPL: 35% of detected range&#10;Turbo Boost: Off">Powersave</button>
-            <button class="profile-btn has-tooltip" data-profile="cool" data-tooltip="Max Performance: 40%&#10;RAPL: 50% of detected range&#10;Turbo Boost: Off">Cool</button>
-            <button class="profile-btn has-tooltip" data-profile="moderate" data-tooltip="Max Performance: 70%&#10;RAPL: 75% of detected range&#10;Turbo Boost: On">Moderate</button>
-            <button class="profile-btn has-tooltip" data-profile="performance" data-tooltip="Max Performance: 100%&#10;RAPL: 100% of detected range&#10;Turbo Boost: On">Performance</button>
+            <button class="profile-btn has-tooltip" data-profile="powersave" data-tooltip="Max Performance: 70%&#10;RAPL: 35% through detected range&#10;Turbo Boost: Off">Powersave</button>
+            <button class="profile-btn has-tooltip" data-profile="cool" data-tooltip="Max Performance: 45%&#10;RAPL: 45% through detected range&#10;Turbo Boost: Off">Cool</button>
+            <button class="profile-btn has-tooltip" data-profile="moderate" data-tooltip="Max Performance: 80%&#10;RAPL: 70% through detected range&#10;Turbo Boost: On">Moderate</button>
+            <button class="profile-btn has-tooltip" data-profile="performance" data-tooltip="Max Performance: 100%&#10;RAPL: 100% through detected range&#10;Turbo Boost: On">Performance</button>
         </div>
     </div>
 
@@ -767,9 +767,9 @@
 
     function getPresetSettings(profile) {
         const presetMap = {
-            powersave: { throttling: 20, raplPercent: 0.35, turboboost: false },
-            cool: { throttling: 40, raplPercent: 0.50, turboboost: false },
-            moderate: { throttling: 70, raplPercent: 0.75, turboboost: true },
+            powersave: { throttling: 70, raplPercent: 0.35, turboboost: false },
+            cool: { throttling: 45, raplPercent: 0.45, turboboost: false },
+            moderate: { throttling: 80, raplPercent: 0.70, turboboost: true },
             performance: { throttling: 100, raplPercent: 1.00, turboboost: true }
         };
         const preset = presetMap[profile] || presetMap.moderate;
@@ -781,7 +781,7 @@
         if (latestRapl && latestRapl.supported && latestRapl.writable && latestRapl.maxPowerLimitWatts) {
             const min = latestRapl.minPowerLimitWatts || 1;
             const max = latestRapl.maxPowerLimitWatts;
-            const target = max * preset.raplPercent;
+            const target = min + ((max - min) * preset.raplPercent);
             settings.raplPowerLimitWatts = Math.round(clamp(target, min, max) * 10) / 10;
         }
 
