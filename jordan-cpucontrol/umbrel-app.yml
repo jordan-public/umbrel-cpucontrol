@@ -8,6 +8,8 @@ description: >-
 
   Whether you're looking to protect your hardware from overheating during heavy workloads, or simply wanting to maximize energy efficiency when peak power isn't needed, CPU Control has you covered. Actively manage thermal performance by manually toggling Turbo Boost, dialing in a precise Max Performance percentage, or setting a Running Average Power Limit when your hardware exposes writable RAPL controls.
 
+  Safe by design: CPU Control does not overclock, overvolt, or push your computer beyond manufacturer limits; it only lets you request lower performance or power limits, or return to the system's normal allowed range.
+
   Additionally, it features a robust, secure built-in API allowing you to easily read these metrics and trigger controls directly from Home Assistant or other local automation platforms.
 
   Source code: https://github.com/jordan-public/umbrel-cpucontrol

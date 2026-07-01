@@ -2,6 +2,8 @@
 
 **DISCLAIMER:** Use at your own risk. The developer, Jordan Stojanovski, assumes no responsibility or liability for any hardware damage, system instability, or data loss that may arise from using this software to modify core CPU parameters.
 
+**Safety note:** CPU Control does not overclock, overvolt, or push your computer beyond manufacturer or firmware limits. The UI and API can only request lower performance or power limits, restore previously saved user-selected limits, or return controls to the system's normal allowed range.
+
 Protect your Umbrel node from overheating and overloading! This app allows you to monitor and manage your CPU directly. Keep a close eye on hardware health with real-time CPU Temperature, CPU Load, CPU Power, and available thermal sensor readings. You can actively manage thermal performance by manually toggling Turbo Boost, dialing in a specific Max Performance percentage, or setting a Running Average Power Limit when your hardware exposes RAPL controls.
 
 Source code: https://github.com/jordan-public/umbrel-cpucontrol
