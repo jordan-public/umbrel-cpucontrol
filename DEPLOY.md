@@ -25,7 +25,7 @@ To simplify releasing new versions, an automated deployment script is provided a
    * *Update `umbrel-app.yml` (App Store manifest).*
    * *Update `docker-compose.yml` image tags.*
    * *Update all version references in `DEPLOY.md`.*
-   * *Build and push the multi-architecture image to Docker Hub under `jordanst/cpucontrol:1.0.0` and `jordanst/cpucontrol:latest`.*
+   * *Build and push the multi-architecture image to Docker Hub under `jordanst/cpucontrol:1.0.21` and `jordanst/cpucontrol:latest`.*
 
 4. **Commit and push** your changes to the community app store repository:
    ```bash
