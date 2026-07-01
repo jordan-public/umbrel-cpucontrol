@@ -41,11 +41,14 @@ async function setTurboBoost(enabled) {
 
 async function checkTurboSupported() {
     try {
-        await fs.access(NO_TURBO_FILE);
-        return true;
-    } catch {
-        return false;
+        const cpuinfo = await fs.readFile('/proc/cpuinfo', 'utf8');
+        if (cpuinfo.includes('ida')) {
+            return true;
+        }
+    } catch (e) {
+        // Ignored
     }
+    return false;
 }
 
 async function getTemperature() {

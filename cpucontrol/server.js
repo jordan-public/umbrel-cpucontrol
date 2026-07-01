@@ -38,13 +38,19 @@ async function startup() {
         const state = JSON.parse(data);
         console.log('Restoring saved state on startup:', state);
         
+        const currentState = await cpu.getCurrentState();
         if (state.throttling !== undefined) globalState.throttling = state.throttling;
-        if (state.turboboost !== undefined) globalState.turboboost = state.turboboost;
         if (state.apiEnabled !== undefined) globalState.apiEnabled = state.apiEnabled;
         if (state.tempUnit !== undefined) globalState.tempUnit = state.tempUnit;
         
+        if (currentState.turboSupported) {
+            if (state.turboboost !== undefined) globalState.turboboost = state.turboboost;
+            await cpu.setTurboBoost(globalState.turboboost);
+        } else {
+            globalState.turboboost = false;
+        }
+
         await cpu.setThrottling(globalState.throttling);
-        await cpu.setTurboBoost(globalState.turboboost);
     } catch (err) {
         if (err.code === 'ENOENT') {
             console.log('No saved state found. Discovering current system state.');
@@ -131,13 +137,17 @@ app.post('/api/settings', async (req, res) => {
     const { throttling, turboboost, apiEnabled, tempUnit } = req.body;
     
     try {
+        const currentState = await cpu.getCurrentState();
+
         if (throttling !== undefined) {
             globalState.throttling = Math.max(10, Math.min(100, throttling));
             await cpu.setThrottling(globalState.throttling);
         }
-        if (turboboost !== undefined) {
+        if (turboboost !== undefined && currentState.turboSupported) {
             globalState.turboboost = !!turboboost;
             await cpu.setTurboBoost(globalState.turboboost);
+        } else if (!currentState.turboSupported) {
+            globalState.turboboost = false;
         }
         if (apiEnabled !== undefined) {
             globalState.apiEnabled = !!apiEnabled;

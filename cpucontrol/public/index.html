@@ -258,7 +258,7 @@
             </div>
         </div>
 
-    <div class="control-group">
+    <div class="control-group" id="turboControlGroup">
         <div class="control-header">
             <span class="control-label">Turbo Boost</span>
             <label class="switch">
@@ -460,9 +460,11 @@
             updateColors(data.temperature, data.load || 0);
 
             if (!data.turboSupported) {
-                turboToggle.disabled = true;
-                turboSlider.style.backgroundColor = '#555';
-                turboWarning.style.display = 'block';
+                // Completely hide the turbo boost control group
+                document.getElementById('turboControlGroup').style.display = 'none';
+            } else {
+                document.getElementById('turboControlGroup').style.display = 'block';
+                turboWarning.style.display = 'none';
             }
 
             // Only update controls if user isn't currently interacting
