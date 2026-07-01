@@ -1,6 +1,6 @@
 # Home Assistant Integration
 
-Because the Umbrel CPU Control app exposes standard HTTP REST endpoints, integrating it into Home Assistant is simple. You can view the live temperatures, CPU load, and interact with the Turbo Boost and Throttling settings natively inside Home Assistant.
+Because the Umbrel CPU Control app exposes standard HTTP REST endpoints, integrating it into Home Assistant is simple. You can view the live temperatures, CPU load, and interact with the Turbo Boost and Max Performance settings natively inside Home Assistant.
 
 The app's UI is protected by Umbrel's app proxy. The `/api/*` endpoints are intentionally whitelisted for local automation, but they only respond after API access has been enabled in the app UI. Token-based API authorization is planned for a future release.
 
@@ -36,7 +36,7 @@ rest:
         unique_id: "umbrel_cpu_load"
         value_template: "{{ value_json.load }}"
         unit_of_measurement: "%"
-      - name: "Umbrel CPU Throttling Limit"
+      - name: "Umbrel Max Performance"
         unique_id: "umbrel_cpu_throttling_limit"
         value_template: "{{ value_json.throttling }}"
         unit_of_measurement: "%"
@@ -78,7 +78,7 @@ switch:
 
 input_number:
   umbrel_cpu_throttling:
-    name: "Set Umbrel CPU Throttling"
+    name: "Set Umbrel Max Performance"
     min: 10
     max: 100
     step: 1
@@ -87,8 +87,8 @@ input_number:
 
 automation:
   - id: 'umbrel_cpu_throttling_sync'
-    alias: "Umbrel - Sync Throttling Input"
-    description: "Sends the API command when the slider is changed."
+    alias: "Umbrel - Sync Max Performance Input"
+    description: "Sends the API command when the Max Performance slider is changed."
     trigger:
       - platform: state
         entity_id: input_number.umbrel_cpu_throttling
@@ -98,8 +98,8 @@ automation:
           level: "{{ trigger.to_state.state | int }}"
 
   - id: 'umbrel_cpu_throttling_update'
-    alias: "Umbrel - Update Throttling Slider from API"
-    description: "Updates the slider if the limit was changed directly on the Umbrel dashboard."
+    alias: "Umbrel - Update Max Performance Slider from API"
+    description: "Updates the slider if Max Performance was changed directly on the Umbrel dashboard."
     trigger:
       - platform: state
         entity_id: sensor.umbrel_cpu_throttling_limit
@@ -130,10 +130,10 @@ Once Home Assistant has restarted, you will have several new entities available:
 **Sensors:**
 - `sensor.umbrel_cpu_temperature` (°C)
 - `sensor.umbrel_cpu_load` (%)
-- `sensor.umbrel_cpu_throttling_limit` (%)
+- `sensor.umbrel_cpu_throttling_limit` (Max Performance, %)
 
 **Controls:**
 - `switch.umbrel_turbo_boost` (Toggle Turbo Boost ON/OFF)
-- `input_number.umbrel_cpu_throttling` (Slider to set Throttling limit)
+- `input_number.umbrel_cpu_throttling` (Slider to set Max Performance)
 
 You can add these entities directly to an **Entities Card** in your Lovelace dashboard to monitor and control your Umbrel node!

@@ -6,7 +6,7 @@ version: "1.0.23"
 description: >-
   Take full control of your node's performance! This app empowers you to monitor and manage your CPU directly, ensuring your Umbrel stays cool, quiet, and perfectly optimized. Keep a close eye on hardware health with real-time CPU Temperature and CPU Load metrics.
 
-  Whether you're looking to protect your hardware from overheating during heavy workloads, or simply wanting to maximize energy efficiency when peak power isn't needed, CPU Control has you covered. Actively manage thermal performance by manually toggling Turbo Boost or dialing in a precise CPU Throttling percentage to instantly cool down a machine running too hot.
+  Whether you're looking to protect your hardware from overheating during heavy workloads, or simply wanting to maximize energy efficiency when peak power isn't needed, CPU Control has you covered. Actively manage thermal performance by manually toggling Turbo Boost or dialing in a precise Max Performance percentage to instantly cool down a machine running too hot.
 
   Additionally, it features a robust, secure built-in API allowing you to easily read these metrics and trigger controls directly from Home Assistant or other local automation platforms.
 

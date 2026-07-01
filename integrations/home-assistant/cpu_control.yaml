@@ -14,7 +14,7 @@ rest:
         unique_id: "umbrel_cpu_load"
         value_template: "{{ value_json.load }}"
         unit_of_measurement: "%"
-      - name: "Umbrel CPU Throttling Limit"
+      - name: "Umbrel Max Performance"
         unique_id: "umbrel_cpu_throttling_limit"
         value_template: "{{ value_json.throttling }}"
         unit_of_measurement: "%"
@@ -56,7 +56,7 @@ switch:
 
 input_number:
   umbrel_cpu_throttling:
-    name: "Set Umbrel CPU Throttling"
+    name: "Set Umbrel Max Performance"
     min: 10
     max: 100
     step: 1
@@ -65,8 +65,8 @@ input_number:
 
 automation:
   - id: 'umbrel_cpu_throttling_sync'
-    alias: "Umbrel - Sync Throttling Input"
-    description: "Sends the API command when the slider is changed."
+    alias: "Umbrel - Sync Max Performance Input"
+    description: "Sends the API command when the Max Performance slider is changed."
     trigger:
       - platform: state
         entity_id: input_number.umbrel_cpu_throttling
@@ -76,8 +76,8 @@ automation:
           level: "{{ trigger.to_state.state | int }}"
 
   - id: 'umbrel_cpu_throttling_update'
-    alias: "Umbrel - Update Throttling Slider from API"
-    description: "Updates the slider if the limit was changed directly on the Umbrel dashboard."
+    alias: "Umbrel - Update Max Performance Slider from API"
+    description: "Updates the slider if Max Performance was changed directly on the Umbrel dashboard."
     trigger:
       - platform: state
         entity_id: sensor.umbrel_cpu_throttling_limit
