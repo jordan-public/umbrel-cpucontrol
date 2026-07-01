@@ -119,7 +119,8 @@ app.get('/api/status', async (req, res) => {
             throttling: globalState.throttling,
             turboboost: globalState.turboboost,
             apiEnabled: globalState.apiEnabled,
-            tempUnit: globalState.tempUnit
+            tempUnit: globalState.tempUnit,
+            modelName: state.modelName
         });
     } catch (err) {
         res.status(500).json({ error: err.message });

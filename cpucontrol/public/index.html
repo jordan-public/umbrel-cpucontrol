@@ -229,6 +229,7 @@
 
 <div class="container" id="app">
     <h1>CPU Control</h1>
+    <div id="cpuModelName" style="text-align: center; color: var(--text-muted); font-size: 14px; margin-top: -20px; margin-bottom: 25px;"></div>
 
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('main')">Main</button>
@@ -445,6 +446,10 @@
             
             if (data.version) {
                 document.getElementById('versionDisplay').innerText = 'v' + data.version;
+            }
+
+            if (data.modelName) {
+                document.getElementById('cpuModelName').innerText = data.modelName;
             }
 
             const isF = data.tempUnit === 'F';

@@ -114,6 +114,24 @@ function getCpuLoad() {
     return 100 - (100 * idleDifference / totalDifference);
 }
 
+async function getCpuModelName() {
+    try {
+        const cpuinfo = await fs.readFile('/proc/cpuinfo', 'utf8');
+        const lines = cpuinfo.split('\n');
+        for (const line of lines) {
+            if (line.startsWith('model name')) {
+                const parts = line.split(':');
+                if (parts.length > 1) {
+                    return parts[1].trim();
+                }
+            }
+        }
+    } catch (e) {
+        // Ignored, might be on a system without /proc/cpuinfo
+    }
+    return "Unknown CPU";
+}
+
 async function getCurrentState() {
     // Attempt to read current state from sysfs
     const noTurbo = await safeRead(NO_TURBO_FILE);
@@ -135,13 +153,16 @@ async function getCurrentState() {
     const turboSupported = await checkTurboSupported();
     
     const load = getCpuLoad();
+    
+    const modelName = await getCpuModelName();
 
     return {
         temperature: Math.round(temp * 10) / 10,
         load: Math.round(load * 10) / 10,
         throttling,
         turboboost,
-        turboSupported
+        turboSupported,
+        modelName
     };
 }
 
@@ -149,5 +170,6 @@ module.exports = {
     setThrottling,
     setTurboBoost,
     getTemperature,
-    getCurrentState
+    getCurrentState,
+    getCpuModelName
 };
