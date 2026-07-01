@@ -434,19 +434,31 @@
     </div>
 
     <div class="control-group">
-        <div class="control-header">
+        <div style="position: relative; margin-bottom: 15px;">
             <span class="control-label">Max Performance</span>
-            <span class="control-value" id="throttleValue">100%</span>
+            <div style="position: absolute; left: 0; right: 0; text-align: center; top: 0; pointer-events: none;">
+                <span class="control-value" id="throttleValue">100%</span>
+            </div>
         </div>
-        <input type="range" id="throttleSlider" min="10" max="100" value="100" step="1">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 12px; color: var(--text-muted);">10%</span>
+            <input type="range" id="throttleSlider" min="10" max="100" value="100" step="1" style="flex: 1; margin: 0;">
+            <span style="font-size: 12px; color: var(--text-muted);">100%</span>
+        </div>
     </div>
 
     <div class="control-group" id="raplControlGroup" style="display: none;">
-        <div class="control-header">
+        <div style="position: relative; margin-bottom: 15px;">
             <span class="control-label">Running Average Power Limit</span>
-            <span class="control-value" id="raplValue">-- W</span>
+            <div style="position: absolute; left: 0; right: 0; text-align: center; top: 0; pointer-events: none;">
+                <span class="control-value" id="raplValue">-- W</span>
+            </div>
         </div>
-        <input type="range" id="raplSlider" min="1" max="100" value="1" step="0.1">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span id="raplMinLabel" style="font-size: 12px; color: var(--text-muted);">-- W</span>
+            <input type="range" id="raplSlider" min="1" max="100" value="1" step="0.1" style="flex: 1; margin: 0;">
+            <span id="raplMaxLabel" style="font-size: 12px; color: var(--text-muted);">-- W</span>
+        </div>
     </div>
 
     </div> <!-- end tab-main -->
@@ -785,6 +797,9 @@
         raplControlGroup.style.display = 'block';
         raplSlider.min = rapl.minPowerLimitWatts || 1;
         raplSlider.max = rapl.maxPowerLimitWatts;
+        
+        document.getElementById('raplMinLabel').innerText = formatWatts(raplSlider.min);
+        document.getElementById('raplMaxLabel').innerText = formatWatts(raplSlider.max);
 
         if (document.activeElement !== raplSlider) {
             raplSlider.value = rapl.powerLimitWatts;
