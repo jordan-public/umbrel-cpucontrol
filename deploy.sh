@@ -4,7 +4,7 @@ VERSION=$1
 
 if [ -z "$VERSION" ]; then
   echo "Usage: ./deploy.sh <new-version>"
-  echo "Example: ./deploy.sh 1.0.18"
+  echo "Example: ./deploy.sh 1.0.22"
   exit 1
 fi
 
@@ -17,7 +17,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "🐳 Building and pushing Docker image to Docker Hub..."
-cd cpucontrol || exit 1
+cd jordan-cpucontrol || exit 1
 docker buildx build --platform linux/amd64 -t jordanst/cpucontrol:"$VERSION" -t jordanst/cpucontrol:latest --push .
 
 if [ $? -ne 0 ]; then
