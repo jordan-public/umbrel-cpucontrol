@@ -82,12 +82,30 @@
             display: none;
             grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
             gap: 10px;
-            margin-top: -10px;
             margin-bottom: 20px;
         }
 
-        .sensor-chip {
+        .temperature-panel {
+            display: none;
             background-color: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 20px;
+        }
+
+        .temperature-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .temperature-panel .sensor-list {
+            margin-bottom: 0;
+        }
+
+        .sensor-chip {
+            background-color: rgba(255,255,255,0.06);
             border-radius: 8px;
             padding: 10px;
             text-align: center;
@@ -294,10 +312,6 @@
 
     <div id="tab-main" class="tab-content active">
         <div class="stat-card stat-grid">
-            <div class="stat-item">
-                <div class="temp-display" id="tempDisplay">--</div>
-                <div class="temp-label" id="tempSourceLabel">CPU Temperature</div>
-            </div>
             <div class="stat-item" id="powerStat" style="display: none;">
                 <div class="temp-display" id="powerDisplay">-- W</div>
                 <div class="temp-label">CPU Power</div>
@@ -308,7 +322,20 @@
             </div>
         </div>
 
-    <div class="sensor-list" id="thermalZones"></div>
+    <div class="temperature-panel" id="temperaturePanel">
+        <div class="temperature-header">
+            <span class="control-label">Temperatures</span>
+            <div style="display: flex; align-items: center;">
+                <span style="font-size: 14px; font-weight: bold; margin-right: 5px;">°C</span>
+                <label class="switch">
+                    <input type="checkbox" id="unitToggle">
+                    <span class="slider"></span>
+                </label>
+                <span style="font-size: 14px; font-weight: bold; margin-left: 5px;">°F</span>
+            </div>
+        </div>
+        <div class="sensor-list" id="thermalZones"></div>
+    </div>
 
     <div class="control-group">
         <div class="profile-buttons">
@@ -346,19 +373,6 @@
         <input type="range" id="raplSlider" min="1" max="100" value="1" step="0.1">
     </div>
 
-    <div class="control-group">
-        <div class="control-header">
-            <span class="control-label">Temperature Unit</span>
-            <div style="display: flex; align-items: center;">
-                <span style="font-size: 14px; font-weight: bold; margin-right: 5px;">°C</span>
-                <label class="switch">
-                    <input type="checkbox" id="unitToggle">
-                    <span class="slider"></span>
-                </label>
-                <span style="font-size: 14px; font-weight: bold; margin-left: 5px;">°F</span>
-            </div>
-        </div>
-    </div>
     </div> <!-- end tab-main -->
 
     <div id="tab-api" class="tab-content">
@@ -417,8 +431,6 @@
 <script>
     const UI_TOKEN = '__UI_TOKEN__';
 
-    const tempDisplay = document.getElementById('tempDisplay');
-    const tempSourceLabel = document.getElementById('tempSourceLabel');
     const loadDisplay = document.getElementById('loadDisplay');
     const unitToggle = document.getElementById('unitToggle');
     const turboToggle = document.getElementById('turboToggle');
@@ -428,6 +440,7 @@
     const throttleValue = document.getElementById('throttleValue');
     const powerStat = document.getElementById('powerStat');
     const powerDisplay = document.getElementById('powerDisplay');
+    const temperaturePanel = document.getElementById('temperaturePanel');
     const thermalZones = document.getElementById('thermalZones');
     const raplControlGroup = document.getElementById('raplControlGroup');
     const raplSlider = document.getElementById('raplSlider');
@@ -522,11 +535,7 @@
         return `rgb(${r}, ${g}, ${b})`;
     }
 
-    function updateColors(tempC, load) {
-        let tp = (tempC - 60) / (100 - 60);
-        tp = Math.max(0, Math.min(1, tp));
-        tempDisplay.style.color = interpolateColor(tp);
-
+    function updateColors(load) {
         let lp = (load - 30) / (100 - 30);
         lp = Math.max(0, Math.min(1, lp));
         loadDisplay.style.color = interpolateColor(lp);
@@ -606,26 +615,43 @@
         return titleCaseSensorName(raw);
     }
 
-    function formatPrimaryTemperatureLabel(zone) {
-        if (!zone) return 'CPU Temperature';
-        return formatThermalSensorName(zone.name, zone.id);
+    function getThermalSensorPriority(zone) {
+        const displayName = formatThermalSensorName(zone.name, zone.id);
+        const rawName = String(zone.name || zone.id || '').toLowerCase();
+
+        if (displayName === 'CPU Package') return 100;
+        if (/x86_pkg_temp|package|pkg|k10temp/.test(rawName)) return 95;
+        if (/coretemp|cpu/.test(rawName)) return 90;
+        if (/soc/.test(rawName)) return 70;
+        return 0;
+    }
+
+    function sortThermalZones(zones) {
+        return [...zones].sort((a, b) => {
+            const priorityDiff = getThermalSensorPriority(b) - getThermalSensorPriority(a);
+            if (priorityDiff !== 0) return priorityDiff;
+            return b.temperature - a.temperature;
+        });
     }
 
     function renderThermalZones(zones, unit) {
         if (!zones || zones.length === 0) {
+            temperaturePanel.style.display = 'none';
             thermalZones.style.display = 'none';
             thermalZones.innerHTML = '';
             return;
         }
 
+        temperaturePanel.style.display = 'block';
         thermalZones.style.display = 'grid';
-        const displayNames = zones.map(zone => formatThermalSensorName(zone.name, zone.id));
+        const sortedZones = sortThermalZones(zones);
+        const displayNames = sortedZones.map(zone => formatThermalSensorName(zone.name, zone.id));
         const displayNameCounts = displayNames.reduce((counts, name) => {
             counts[name] = (counts[name] || 0) + 1;
             return counts;
         }, {});
 
-        thermalZones.innerHTML = zones.map(zone => {
+        thermalZones.innerHTML = sortedZones.map(zone => {
             const rawName = zone.name || zone.id;
             const baseDisplayName = formatThermalSensorName(zone.name, zone.id);
             const displayName = displayNameCounts[baseDisplayName] > 1
@@ -718,16 +744,11 @@
                 document.getElementById('cpuModelName').innerText = data.modelName;
             }
 
-            tempDisplay.innerText = formatTemp(data.temperature, data.tempUnit || 'C');
-            tempSourceLabel.innerText = formatPrimaryTemperatureLabel(data.primaryThermalZone);
-            tempSourceLabel.title = data.primaryThermalZone
-                ? `Raw sensor: ${data.primaryThermalZone.name || data.primaryThermalZone.id}`
-                : '';
             loadDisplay.innerText = (data.load || 0).toFixed(1) + '%';
             renderThermalZones(data.thermalZones || [], data.tempUnit || 'C');
             renderRapl(data.rapl);
             
-            updateColors(data.temperature, data.load || 0);
+            updateColors(data.load || 0);
 
             if (!data.turboSupported) {
                 // Completely hide the turbo boost control group
