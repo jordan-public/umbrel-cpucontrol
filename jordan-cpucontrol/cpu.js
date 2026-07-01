@@ -10,6 +10,8 @@ const MAX_PERF_FILE = path.join(PSTATE_DIR, 'max_perf_pct');
 const SMT_CONTROL_FILE = '/sys/devices/system/cpu/smt/control';
 const THERMAL_DIR = '/sys/class/thermal';
 const POWERCAP_DIR = '/sys/class/powercap';
+const MIN_VALID_TEMP_C = -40;
+const MAX_VALID_TEMP_C = 200;
 
 let previousRaplSample = null;
 
@@ -44,6 +46,29 @@ function roundToTenth(value) {
     return Math.round(value * 10) / 10;
 }
 
+function isValidTemperature(tempC) {
+    return Number.isFinite(tempC) && tempC >= MIN_VALID_TEMP_C && tempC <= MAX_VALID_TEMP_C;
+}
+
+function getThermalZonePriority(zone) {
+    const name = (zone.name || zone.id || '').toLowerCase();
+
+    if (/x86_pkg_temp|package|pkg|k10temp/.test(name)) return 100;
+    if (/coretemp|cpu/.test(name)) return 90;
+    if (/soc/.test(name)) return 60;
+    return 0;
+}
+
+function selectPrimaryThermalZone(zones) {
+    if (!zones || zones.length === 0) return null;
+
+    return [...zones].sort((a, b) => {
+        const priorityDiff = getThermalZonePriority(b) - getThermalZonePriority(a);
+        if (priorityDiff !== 0) return priorityDiff;
+        return b.temperature - a.temperature;
+    })[0];
+}
+
 async function canWrite(filePath) {
     try {
         await fs.access(filePath, nodeFs.constants.W_OK);
@@ -69,11 +94,14 @@ async function getThermalZones() {
                 const tempVal = parseInt(tempStr, 10);
                 if (isNaN(tempVal)) continue;
 
+                const tempC = roundToTenth(tempVal / 1000);
+                if (!isValidTemperature(tempC)) continue;
+
                 const type = await safeRead(typeFile);
                 readings.push({
                     id: zone,
                     name: type || zone,
-                    temperature: roundToTenth(tempVal / 1000)
+                    temperature: tempC
                 });
             } catch (e) {
                 // Ignore zones that can't be read
@@ -105,9 +133,8 @@ async function checkTurboSupported() {
 
 async function getTemperature() {
     const zones = await getThermalZones();
-    if (zones.length > 0) {
-        return Math.max(...zones.map(zone => zone.temperature));
-    }
+    const primaryZone = selectPrimaryThermalZone(zones);
+    if (primaryZone) return primaryZone.temperature;
     
     // Default fallback if no sysfs available (e.g. on Mac)
     return 45.0 + Math.random() * 5.0; // dummy temp
@@ -295,9 +322,8 @@ async function getCurrentState() {
     const smtControl = await safeRead(SMT_CONTROL_FILE);
     
     const thermalZones = await getThermalZones();
-    const temp = thermalZones.length > 0
-        ? Math.max(...thermalZones.map(zone => zone.temperature))
-        : await getTemperature();
+    const primaryThermalZone = selectPrimaryThermalZone(thermalZones);
+    const temp = primaryThermalZone ? primaryThermalZone.temperature : await getTemperature();
     
     let throttling = 100;
     if (maxPerf !== null) {
@@ -318,6 +344,7 @@ async function getCurrentState() {
 
     return {
         temperature: roundToTenth(temp),
+        primaryThermalZone,
         thermalZones,
         load: roundToTenth(load),
         throttling,

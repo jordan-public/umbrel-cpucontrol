@@ -295,18 +295,8 @@
     <div id="tab-main" class="tab-content active">
         <div class="stat-card stat-grid">
             <div class="stat-item">
-                <div style="display: flex; align-items: center; justify-content: center;">
-                    <div class="temp-display" id="tempDisplay">--</div>
-                    <div class="unit-toggle" style="display: flex; align-items: center; margin-left: 10px;">
-                        <span style="font-size: 14px; font-weight: bold; margin-right: 5px;">°C</span>
-                        <label class="switch">
-                            <input type="checkbox" id="unitToggle">
-                            <span class="slider"></span>
-                        </label>
-                        <span style="font-size: 14px; font-weight: bold; margin-left: 5px;">°F</span>
-                    </div>
-                </div>
-                <div class="temp-label">Hottest Temperature</div>
+                <div class="temp-display" id="tempDisplay">--</div>
+                <div class="temp-label" id="tempSourceLabel">CPU Temperature</div>
             </div>
             <div class="stat-item" id="powerStat" style="display: none;">
                 <div class="temp-display" id="powerDisplay">-- W</div>
@@ -354,6 +344,20 @@
             <span class="control-value" id="raplValue">-- W</span>
         </div>
         <input type="range" id="raplSlider" min="1" max="100" value="1" step="0.1">
+    </div>
+
+    <div class="control-group">
+        <div class="control-header">
+            <span class="control-label">Temperature Unit</span>
+            <div style="display: flex; align-items: center;">
+                <span style="font-size: 14px; font-weight: bold; margin-right: 5px;">°C</span>
+                <label class="switch">
+                    <input type="checkbox" id="unitToggle">
+                    <span class="slider"></span>
+                </label>
+                <span style="font-size: 14px; font-weight: bold; margin-left: 5px;">°F</span>
+            </div>
+        </div>
     </div>
     </div> <!-- end tab-main -->
 
@@ -414,6 +418,7 @@
     const UI_TOKEN = '__UI_TOKEN__';
 
     const tempDisplay = document.getElementById('tempDisplay');
+    const tempSourceLabel = document.getElementById('tempSourceLabel');
     const loadDisplay = document.getElementById('loadDisplay');
     const unitToggle = document.getElementById('unitToggle');
     const turboToggle = document.getElementById('turboToggle');
@@ -601,6 +606,11 @@
         return titleCaseSensorName(raw);
     }
 
+    function formatPrimaryTemperatureLabel(zone) {
+        if (!zone) return 'CPU Temperature';
+        return formatThermalSensorName(zone.name, zone.id);
+    }
+
     function renderThermalZones(zones, unit) {
         if (!zones || zones.length === 0) {
             thermalZones.style.display = 'none';
@@ -609,9 +619,18 @@
         }
 
         thermalZones.style.display = 'grid';
+        const displayNames = zones.map(zone => formatThermalSensorName(zone.name, zone.id));
+        const displayNameCounts = displayNames.reduce((counts, name) => {
+            counts[name] = (counts[name] || 0) + 1;
+            return counts;
+        }, {});
+
         thermalZones.innerHTML = zones.map(zone => {
             const rawName = zone.name || zone.id;
-            const displayName = formatThermalSensorName(zone.name, zone.id);
+            const baseDisplayName = formatThermalSensorName(zone.name, zone.id);
+            const displayName = displayNameCounts[baseDisplayName] > 1
+                ? `${baseDisplayName} ${String(zone.id || '').replace('thermal_zone', '')}`
+                : baseDisplayName;
 
             return `
             <div class="sensor-chip" title="Raw sensor: ${escapeHtml(rawName)}">
@@ -656,13 +675,16 @@
 
     function getPresetSettings(profile) {
         const presetMap = {
-            powersave: { throttling: 20, raplPercent: 0.35 },
-            cool: { throttling: 40, raplPercent: 0.50 },
-            moderate: { throttling: 70, raplPercent: 0.75 },
-            performance: { throttling: 100, raplPercent: 1.00 }
+            powersave: { throttling: 20, raplPercent: 0.35, turboboost: false },
+            cool: { throttling: 40, raplPercent: 0.50, turboboost: false },
+            moderate: { throttling: 70, raplPercent: 0.75, turboboost: true },
+            performance: { throttling: 100, raplPercent: 1.00, turboboost: true }
         };
         const preset = presetMap[profile] || presetMap.moderate;
-        const settings = { throttling: preset.throttling };
+        const settings = {
+            throttling: preset.throttling,
+            turboboost: preset.turboboost
+        };
 
         if (latestRapl && latestRapl.supported && latestRapl.writable && latestRapl.maxPowerLimitWatts) {
             const min = latestRapl.minPowerLimitWatts || 1;
@@ -696,9 +718,11 @@
                 document.getElementById('cpuModelName').innerText = data.modelName;
             }
 
-            const isF = data.tempUnit === 'F';
-            const displayTemp = isF ? (data.temperature * 9/5 + 32) : data.temperature;
-            tempDisplay.innerText = displayTemp.toFixed(1);
+            tempDisplay.innerText = formatTemp(data.temperature, data.tempUnit || 'C');
+            tempSourceLabel.innerText = formatPrimaryTemperatureLabel(data.primaryThermalZone);
+            tempSourceLabel.title = data.primaryThermalZone
+                ? `Raw sensor: ${data.primaryThermalZone.name || data.primaryThermalZone.id}`
+                : '';
             loadDisplay.innerText = (data.load || 0).toFixed(1) + '%';
             renderThermalZones(data.thermalZones || [], data.tempUnit || 'C');
             renderRapl(data.rapl);
@@ -820,6 +844,7 @@
 
             throttleSlider.value = presetSettings.throttling;
             throttleValue.innerText = presetSettings.throttling + '%';
+            turboToggle.checked = presetSettings.turboboost;
 
             if (presetSettings.raplPowerLimitWatts !== undefined) {
                 raplSlider.value = presetSettings.raplPowerLimitWatts;

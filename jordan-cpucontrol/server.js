@@ -135,6 +135,7 @@ app.get('/api/status', async (req, res) => {
             apiEnabled: globalState.apiEnabled,
             tempUnit: globalState.tempUnit,
             modelName: state.modelName,
+            primaryThermalZone: state.primaryThermalZone,
             thermalZones: state.thermalZones,
             rapl: state.rapl,
             raplPowerLimitWatts: globalState.raplPowerLimitWatts
