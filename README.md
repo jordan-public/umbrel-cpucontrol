@@ -38,7 +38,7 @@ Returns the current state of the CPU.
 **Response:**
 ```json
 {
-  "version": "1.0.23",
+  "version": "1.0.24",
   "temperature": 100,
   "load": 25.4,
   "turboSupported": true,

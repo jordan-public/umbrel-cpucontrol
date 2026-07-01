@@ -18,19 +18,19 @@ To simplify releasing new versions, an automated deployment script is provided a
 
 3. **Run the deployment script** with your target version:
    ```bash
-   ./deploy.sh 1.0.23
+   ./deploy.sh 1.0.24
    ```
    *This single command will:*
    * *Update `package.json` and `package-lock.json`.*
    * *Update `umbrel-app.yml` (App Store manifest).*
    * *Update `docker-compose.yml` image tags.*
    * *Update all version references in `DEPLOY.md`.*
-   * *Build and push the multi-architecture image to Docker Hub under `jordanst/cpucontrol:1.0.23` and `jordanst/cpucontrol:latest`.*
+   * *Build and push the multi-architecture image to Docker Hub under `jordanst/cpucontrol:1.0.24` and `jordanst/cpucontrol:latest`.*
 
 4. **Commit and push** your changes to the community app store repository:
    ```bash
    git add .
-   git commit -m "Release 1.0.23"
+   git commit -m "Release 1.0.24"
    git push
    ```
 
@@ -39,5 +39,5 @@ To simplify releasing new versions, an automated deployment script is provided a
 If you only want to bump the versions across all configuration files without deploying to Docker Hub, you can run the bump script directly:
 
 ```bash
-node bump.js 1.0.23
+node bump.js 1.0.24
 ```
