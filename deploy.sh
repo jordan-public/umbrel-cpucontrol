@@ -4,7 +4,7 @@ VERSION=$1
 
 if [ -z "$VERSION" ]; then
   echo "Usage: ./deploy.sh <new-version>"
-  echo "Example: ./deploy.sh 1.0.27"
+  echo "Example: ./deploy.sh 1.0.28"
   exit 1
 fi
 

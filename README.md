@@ -40,11 +40,11 @@ Returns the current state of the CPU.
 **Response:**
 ```json
 {
-  "version": "1.0.27",
+  "version": "1.0.28",
   "temperature": 100,
   "load": 25.4,
   "turboSupported": true,
-  "throttling": 100,
+  "maxPerformancePercent": 100,
   "turboboost": true,
   "apiEnabled": true,
   "tempUnit": "C",
@@ -79,7 +79,7 @@ Updates the CPU parameters and saves the state.
 ```json
 {
   "turboboost": false,
-  "throttling": 20,
+  "maxPerformancePercent": 20,
   "raplPowerLimitWatts": 15,
   "apiEnabled": true
 }

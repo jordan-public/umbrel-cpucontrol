@@ -36,7 +36,7 @@ async function safeRead(filePath) {
     }
 }
 
-async function setThrottling(pct) {
+async function setMaxPerformancePercent(pct) {
     // 10% to 100%
     const val = Math.max(10, Math.min(100, pct));
     await safeWrite(MAX_PERF_FILE, val);
@@ -325,9 +325,9 @@ async function getCurrentState() {
     const primaryThermalZone = selectPrimaryThermalZone(thermalZones);
     const temp = primaryThermalZone ? primaryThermalZone.temperature : await getTemperature();
     
-    let throttling = 100;
+    let maxPerformancePercent = 100;
     if (maxPerf !== null) {
-        throttling = parseInt(maxPerf, 10);
+        maxPerformancePercent = parseInt(maxPerf, 10);
     }
     
     let turboboost = true;
@@ -347,7 +347,7 @@ async function getCurrentState() {
         primaryThermalZone,
         thermalZones,
         load: roundToTenth(load),
-        throttling,
+        maxPerformancePercent,
         turboboost,
         turboSupported,
         modelName,
@@ -356,7 +356,7 @@ async function getCurrentState() {
 }
 
 module.exports = {
-    setThrottling,
+    setMaxPerformancePercent,
     setTurboBoost,
     setRaplPowerLimitWatts,
     getTemperature,

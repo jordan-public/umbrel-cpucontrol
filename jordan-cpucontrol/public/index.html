@@ -373,6 +373,15 @@
             margin-bottom: 5px;
             color: var(--text-muted);
         }
+
+        .range-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            width: 60px;
+            text-align: center;
+            flex-shrink: 0;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
@@ -441,9 +450,9 @@
             </div>
         </div>
         <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 12px; color: var(--text-muted);">10%</span>
+            <span class="range-label">10%</span>
             <input type="range" id="throttleSlider" min="10" max="100" value="100" step="1" style="flex: 1; margin: 0;">
-            <span style="font-size: 12px; color: var(--text-muted);">100%</span>
+            <span class="range-label">100%</span>
         </div>
     </div>
 
@@ -455,9 +464,9 @@
             </div>
         </div>
         <div style="display: flex; align-items: center; gap: 10px;">
-            <span id="raplMinLabel" style="font-size: 12px; color: var(--text-muted);">-- W</span>
+            <span id="raplMinLabel" class="range-label">-- W</span>
             <input type="range" id="raplSlider" min="1" max="100" value="1" step="0.1" style="flex: 1; margin: 0;">
-            <span id="raplMaxLabel" style="font-size: 12px; color: var(--text-muted);">-- W</span>
+            <span id="raplMaxLabel" class="range-label">-- W</span>
         </div>
     </div>
 
@@ -540,7 +549,7 @@
 
     let currentSettings = {
         turboboost: true,
-        throttling: 100,
+        maxPerformancePercent: 100,
         apiEnabled: false,
         tempUnit: 'C',
         raplPowerLimitWatts: null
@@ -552,7 +561,7 @@
     // Set dynamic API URLs based on current host
     const apiBaseUrl = window.location.origin;
     document.getElementById('code-get').innerText = `curl ${apiBaseUrl}/api/status`;
-    document.getElementById('code-post-throttle').innerText = `curl -X POST ${apiBaseUrl}/api/settings \\\n  -H "Content-Type: application/json" \\\n  -d '{"throttling": 50}'`;
+    document.getElementById('code-post-throttle').innerText = `curl -X POST ${apiBaseUrl}/api/settings \\\n  -H "Content-Type: application/json" \\\n  -d '{"maxPerformancePercent": 50}'`;
     document.getElementById('code-post-turbo').innerText = `curl -X POST ${apiBaseUrl}/api/settings \\\n  -H "Content-Type: application/json" \\\n  -d '{"turboboost": true}'`;
     document.getElementById('code-post-rapl').innerText = `curl -X POST ${apiBaseUrl}/api/settings \\\n  -H "Content-Type: application/json" \\\n  -d '{"raplPowerLimitWatts": 15}'`;
 
@@ -809,14 +818,14 @@
 
     function getPresetSettings(profile) {
         const presetMap = {
-            powersave: { throttling: 70, raplPercent: 0.35, turboboost: false },
-            cool: { throttling: 45, raplPercent: 0.45, turboboost: false },
-            moderate: { throttling: 80, raplPercent: 0.70, turboboost: true },
-            performance: { throttling: 100, raplPercent: 1.00, turboboost: true }
+            powersave: { maxPerformancePercent: 70, raplPercent: 0.35, turboboost: false },
+            cool: { maxPerformancePercent: 45, raplPercent: 0.45, turboboost: false },
+            moderate: { maxPerformancePercent: 80, raplPercent: 0.70, turboboost: true },
+            performance: { maxPerformancePercent: 100, raplPercent: 1.00, turboboost: true }
         };
         const preset = presetMap[profile] || presetMap.moderate;
         const settings = {
-            throttling: preset.throttling,
+            maxPerformancePercent: preset.maxPerformancePercent,
             turboboost: preset.turboboost
         };
 
@@ -873,8 +882,8 @@
                 }
                 
                 if (document.activeElement !== throttleSlider) {
-                    throttleSlider.value = data.throttling;
-                    throttleValue.innerText = data.throttling + '%';
+                    throttleSlider.value = data.maxPerformancePercent;
+                    throttleValue.innerText = data.maxPerformancePercent + '%';
                 }
 
                 if (data.rapl && data.rapl.writable && document.activeElement !== raplSlider) {
@@ -895,7 +904,7 @@
 
                 currentSettings = {
                     turboboost: data.turboboost,
-                    throttling: data.throttling,
+                    maxPerformancePercent: data.maxPerformancePercent,
                     apiEnabled: data.apiEnabled,
                     tempUnit: data.tempUnit || 'C',
                     raplPowerLimitWatts: data.raplPowerLimitWatts || (data.rapl ? data.rapl.powerLimitWatts : null)
@@ -947,7 +956,7 @@
         isUpdating = true;
         saveSettings({
             ...currentSettings,
-            throttling: parseInt(e.target.value, 10)
+            maxPerformancePercent: parseInt(e.target.value, 10)
         }).finally(() => isUpdating = false).catch(() => {});
     });
 
@@ -971,8 +980,8 @@
                 ...presetSettings
             };
 
-            throttleSlider.value = presetSettings.throttling;
-            throttleValue.innerText = presetSettings.throttling + '%';
+            throttleSlider.value = presetSettings.maxPerformancePercent;
+            throttleValue.innerText = presetSettings.maxPerformancePercent + '%';
             turboToggle.checked = presetSettings.turboboost;
 
             if (presetSettings.raplPowerLimitWatts !== undefined) {

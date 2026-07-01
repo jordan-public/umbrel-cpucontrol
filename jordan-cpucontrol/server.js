@@ -15,7 +15,7 @@ const STATE_FILE = path.join(DATA_DIR, 'state.json');
 const UI_TOKEN = crypto.randomBytes(16).toString('hex');
 
 let globalState = {
-    throttling: 100,
+    maxPerformancePercent: 100,
     turboboost: true,
     apiEnabled: false,
     tempUnit: 'C',
@@ -40,7 +40,7 @@ async function startup() {
         console.log('Restoring saved state on startup:', state);
         
         const currentState = await cpu.getCurrentState();
-        if (state.throttling !== undefined) globalState.throttling = state.throttling;
+        if (state.maxPerformancePercent !== undefined) globalState.maxPerformancePercent = state.maxPerformancePercent;
         if (state.apiEnabled !== undefined) globalState.apiEnabled = state.apiEnabled;
         if (state.tempUnit !== undefined) globalState.tempUnit = state.tempUnit;
         if (state.raplPowerLimitWatts !== undefined) globalState.raplPowerLimitWatts = state.raplPowerLimitWatts;
@@ -52,7 +52,7 @@ async function startup() {
             globalState.turboboost = false;
         }
 
-        await cpu.setThrottling(globalState.throttling);
+        await cpu.setMaxPerformancePercent(globalState.maxPerformancePercent);
         if (globalState.raplPowerLimitWatts !== null && currentState.rapl && currentState.rapl.writable) {
             await cpu.setRaplPowerLimitWatts(globalState.raplPowerLimitWatts);
         }
@@ -61,7 +61,7 @@ async function startup() {
             console.log('No saved state found. Discovering current system state.');
             try {
                 const currentState = await cpu.getCurrentState();
-                globalState.throttling = currentState.throttling;
+                globalState.maxPerformancePercent = currentState.maxPerformancePercent;
                 if (currentState.rapl && currentState.rapl.writable && currentState.rapl.powerLimitWatts !== null) {
                     globalState.raplPowerLimitWatts = currentState.rapl.powerLimitWatts;
                 }
@@ -130,7 +130,7 @@ app.get('/api/status', async (req, res) => {
             temperature: state.temperature,
             load: state.load,
             turboSupported: state.turboSupported,
-            throttling: globalState.throttling,
+            maxPerformancePercent: globalState.maxPerformancePercent,
             turboboost: globalState.turboboost,
             apiEnabled: globalState.apiEnabled,
             tempUnit: globalState.tempUnit,
@@ -146,14 +146,14 @@ app.get('/api/status', async (req, res) => {
 });
 
 app.post('/api/settings', async (req, res) => {
-    const { throttling, turboboost, apiEnabled, tempUnit, raplPowerLimitWatts } = req.body;
-    
+    const { maxPerformancePercent, turboboost, apiEnabled, tempUnit, raplPowerLimitWatts } = req.body;
+
     try {
         const currentState = await cpu.getCurrentState();
 
-        if (throttling !== undefined) {
-            globalState.throttling = Math.max(10, Math.min(100, throttling));
-            await cpu.setThrottling(globalState.throttling);
+        if (maxPerformancePercent !== undefined) {
+            globalState.maxPerformancePercent = Math.max(10, Math.min(100, maxPerformancePercent));
+            await cpu.setMaxPerformancePercent(globalState.maxPerformancePercent);
         }
         if (turboboost !== undefined && currentState.turboSupported) {
             globalState.turboboost = !!turboboost;

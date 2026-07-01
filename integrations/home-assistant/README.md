@@ -43,7 +43,7 @@ rest:
         unit_of_measurement: "W"
       - name: "Umbrel Max Performance"
         unique_id: "umbrel_cpu_throttling_limit"
-        value_template: "{{ value_json.throttling }}"
+        value_template: "{{ value_json.maxPerformancePercent }}"
         unit_of_measurement: "%"
       - name: "Umbrel Running Average Power Limit"
         unique_id: "umbrel_cpu_rapl_limit"
@@ -68,7 +68,7 @@ rest_command:
     method: POST
     headers:
       content_type: 'application/json'
-    payload: '{"throttling": {{ level }}}'
+    payload: '{"maxPerformancePercent": {{ level }}}'
 
 switch:
   - platform: template
